@@ -1,0 +1,22 @@
+{
+  "$schema": "https://orca.run/schemas/orca-plugin-v2.json",
+  "manifestVersion": 2,
+  "id": "personaos-bridge",
+  "publisher": "joseph118789-max",
+  "name": "PersonaOS Workforce Bridge",
+  "version": "1.0.0",
+  "description": "Visual ADE bridge for persistent AI workforce management, task delegation, and review.",
+  "author": {
+    "name": "PersonaOS Team"
+  },
+  "repository": "https://github.com/joseph118789-max/personaos-orca-plugin",
+  "engines": {
+    "orca": ">=1.0.0"
+  },
+  "execution": "declarative",
+  "contributes": {},
+  "capabilities": [
+    "workspace:read",
+    "notifications:show"
+  ]
+}
