@@ -291,38 +291,65 @@
   </div>
 
   <script>
-    // Candidate API hosts ordered by priority
-    const candidates = [
-      localStorage.getItem('personaos_api_url'),
+    // In-memory fallback if sandboxed iframe blocks localStorage
+    var memoryStore = {};
+    function safeStorageGet(key) {
+      try {
+        if (window.localStorage) {
+          return window.localStorage.getItem(key);
+        }
+      } catch (e) {}
+      return memoryStore[key] || null;
+    }
+    function safeStorageSet(key, val) {
+      try {
+        if (window.localStorage) {
+          window.localStorage.setItem(key, val);
+          return;
+        }
+      } catch (e) {}
+      memoryStore[key] = val;
+    }
+
+    var candidates = [
       'http://192.168.1.239:8000',
       'http://localhost:8000',
       'http://127.0.0.1:8000'
-    ].filter(Boolean);
+    ];
 
-    let activeApiBase = candidates[0] || 'http://192.168.1.239:8000';
-    document.getElementById('api-url-input').value = activeApiBase;
+    var savedUrl = safeStorageGet('personaos_api_url');
+    var activeApiBase = savedUrl || 'http://192.168.1.239:8000';
+
+    var inputEl = document.getElementById('api-url-input');
+    if (inputEl) inputEl.value = activeApiBase;
 
     function toggleApiBar() {
-      const bar = document.getElementById('api-bar');
-      bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+      var bar = document.getElementById('api-bar');
+      if (bar) {
+        bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+      }
     }
 
     function saveCustomApiUrl() {
-      let val = document.getElementById('api-url-input').value.trim();
+      var input = document.getElementById('api-url-input');
+      if (!input) return;
+      var val = input.value.trim();
       if (!val) return;
       if (!val.startsWith('http')) val = 'http://' + val;
       val = val.replace(/\/+$/, '');
       activeApiBase = val;
-      localStorage.setItem('personaos_api_url', val);
-      document.getElementById('api-bar').style.display = 'none';
-      checkHealth().then(() => {
+      safeStorageSet('personaos_api_url', val);
+      var bar = document.getElementById('api-bar');
+      if (bar) bar.style.display = 'none';
+      checkHealth().then(function() {
         loadWorkers();
         loadTasks();
       });
     }
 
     function switchCandidate(url) {
-      document.getElementById('api-url-input').value = url;
+      var input = document.getElementById('api-url-input');
+      if (input) input.value = url;
       saveCustomApiUrl();
     }
 
@@ -340,14 +367,16 @@
       } catch (e) {}
 
       // 3. Fallback: probe candidates if active is unreachable
-      for (const c of candidates) {
+      for (var i = 0; i < candidates.length; i++) {
+        var c = candidates[i];
         if (c === activeApiBase) continue;
         try {
-          const res = await fetch(`${c}${path}`, options);
+          var res = await fetch(`${c}${path}`, options);
           if (res.ok) {
             activeApiBase = c;
-            localStorage.setItem('personaos_api_url', c);
-            document.getElementById('api-url-input').value = c;
+            safeStorageSet('personaos_api_url', c);
+            var input = document.getElementById('api-url-input');
+            if (input) input.value = c;
             return res;
           }
         } catch (e) {}
@@ -360,7 +389,8 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       if (ev && ev.target) ev.target.classList.add('active');
-      document.getElementById('tab-' + name).classList.add('active');
+      var el = document.getElementById('tab-' + name);
+      if (el) el.classList.add('active');
       if (name === 'workers') loadWorkers();
       if (name === 'tasks') loadTasks();
       if (name === 'reviews') loadReviews();
@@ -372,15 +402,18 @@
       try {
         const res = await apiFetch('/health');
         if (res.ok) {
-          indicator.className = 'indicator online';
-          label.textContent = 'Connected';
+          if (indicator) indicator.className = 'indicator online';
+          if (label) label.textContent = 'Connected (' + activeApiBase.replace(/^https?:\/\//, '') + ')';
+          return true;
         } else {
-          indicator.className = 'indicator offline';
-          label.textContent = 'API Error';
+          if (indicator) indicator.className = 'indicator offline';
+          if (label) label.textContent = 'API Error';
+          return false;
         }
       } catch (e) {
-        indicator.className = 'indicator offline';
-        label.textContent = 'Offline';
+        if (indicator) indicator.className = 'indicator offline';
+        if (label) label.textContent = 'Offline';
+        return false;
       }
     }
 
@@ -398,9 +431,11 @@
           return;
         }
 
-        select.innerHTML = workers.map(w =>
-          `<option value="${w.id}">${w.name || w.id} (${w.role || 'Worker'})</option>`
-        ).join('');
+        if (select) {
+          select.innerHTML = workers.map(w =>
+            `<option value="${w.id}">${w.name || w.id} (${w.role || 'Worker'})</option>`
+          ).join('');
+        }
 
         container.innerHTML = workers.map(w => `
           <div class="card">
@@ -424,7 +459,7 @@
             <div style="font-weight:600;color:var(--danger);margin-bottom:6px">Connection Error: ${e.message}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
               Cannot reach PersonaOS API at <code>${activeApiBase}</code>.<br/>
-              If running Orca on a desktop client, connect to the host IP or forward port 8000:
+              Select an endpoint below or enter custom URL:
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://192.168.1.239:8000')">Use 192.168.1.239:8000</button>
@@ -580,14 +615,14 @@
     }
 
     // Auto-probe health on boot and start refresh loop
-    checkHealth().then(() => {
+    checkHealth().then(function() {
       loadWorkers();
       loadTasks();
     });
 
-    setInterval(() => {
+    setInterval(function() {
       checkHealth();
-      const activeTab = document.querySelector('.tab-content.active');
+      var activeTab = document.querySelector('.tab-content.active');
       if (activeTab && activeTab.id === 'tab-workers') loadWorkers();
       if (activeTab && activeTab.id === 'tab-tasks') loadTasks();
       if (activeTab && activeTab.id === 'tab-reviews') loadReviews();
