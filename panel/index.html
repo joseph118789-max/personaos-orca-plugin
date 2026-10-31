@@ -17,6 +17,7 @@
       --success: #22c55e;
       --warning: #f59e0b;
       --danger: #ef4444;
+      --info: #38bdf8;
     }
     * {
       box-sizing: border-box;
@@ -107,6 +108,19 @@
       font-weight: 600;
       font-size: 13px;
     }
+    .status-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .status-tag.idle, .status-tag.completed { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+    .status-tag.running, .status-tag.in_progress { background: rgba(56, 189, 248, 0.15); color: var(--info); }
+    .status-tag.review { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .status-tag.failed, .status-tag.error { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+    .status-tag.pending { background: rgba(161, 161, 170, 0.15); color: var(--text-muted); }
+
     .btn {
       background: var(--accent);
       color: #ffffff;
@@ -125,6 +139,19 @@
       color: var(--text);
     }
     .btn-secondary:hover { background: #323238; }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: var(--danger);
+    }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.35); }
+    .btn-success {
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: var(--success);
+    }
+    .btn-success:hover { background: rgba(34, 197, 94, 0.35); }
+
     .form-group {
       margin-bottom: 10px;
     }
@@ -156,6 +183,20 @@
       color: var(--text-muted);
       margin-top: 6px;
     }
+    .chip-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .chip {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
@@ -165,25 +206,25 @@
     </div>
     <div class="badge">
       <span class="indicator" id="api-status"></span>
-      <span id="api-label">Checking...</span>
+      <span id="api-label">Connecting...</span>
     </div>
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('workers')">Workers</button>
-    <button class="tab-btn" onclick="switchTab('tasks')">Tasks</button>
-    <button class="tab-btn" onclick="switchTab('dispatch')">New Task</button>
-    <button class="tab-btn" onclick="switchTab('reviews')">Reviews</button>
+    <button class="tab-btn active" onclick="switchTab('workers', event)">Workers</button>
+    <button class="tab-btn" onclick="switchTab('tasks', event)">Tasks</button>
+    <button class="tab-btn" onclick="switchTab('dispatch', event)">New Task</button>
+    <button class="tab-btn" onclick="switchTab('reviews', event)">Reviews</button>
   </div>
 
   <!-- Workers Tab -->
   <div id="tab-workers" class="tab-content active">
-    <div id="workers-list">Loading workers...</div>
+    <div id="workers-list">Loading workforce roster...</div>
   </div>
 
   <!-- Tasks Tab -->
   <div id="tab-tasks" class="tab-content">
-    <div id="tasks-list">Loading active tasks...</div>
+    <div id="tasks-list">Loading tasks...</div>
   </div>
 
   <!-- New Task Tab -->
@@ -193,48 +234,64 @@
         <label>Assign Worker</label>
         <select id="task-worker">
           <option value="se">Software Engineer (se)</option>
-          <option value="qa">QA Engineer (qa)</option>
         </select>
       </div>
       <div class="form-group">
         <label>Task Title</label>
-        <input type="text" id="task-title" placeholder="e.g. Implement user authentication endpoint" />
+        <input type="text" id="task-title" placeholder="e.g. Implement health check metrics" />
       </div>
       <div class="form-group">
         <label>Objective & Instructions</label>
-        <textarea id="task-objective" rows="4" placeholder="Detail the work to be done..."></textarea>
+        <textarea id="task-objective" rows="4" placeholder="Detail requirements, files, and expected deliverables..."></textarea>
       </div>
       <div class="form-group">
-        <label>Worktree Context</label>
-        <input type="text" id="task-worktree" placeholder="Active worktree path" readonly />
+        <label>Priority</label>
+        <select id="task-priority">
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="low">Low</option>
+          <option value="critical">Critical</option>
+        </select>
       </div>
-      <button class="btn" style="width: 100%" onclick="submitTask()">Dispatch to PersonaOS</button>
+      <button class="btn" style="width: 100%" onclick="submitTask()">Dispatch Task</button>
     </div>
   </div>
 
   <!-- Reviews Tab -->
   <div id="tab-reviews" class="tab-content">
-    <div id="reviews-list">No pending reviews.</div>
+    <div id="reviews-list">Loading review queue...</div>
   </div>
 
   <script>
     const API_BASE = 'http://localhost:8000';
+    let knownWorkers = [];
 
-    function switchTab(name) {
+    async function apiFetch(path, options = {}) {
+      try {
+        const res = await fetch(`${API_BASE}${path}`, options);
+        if (res.ok || res.status !== 404) return res;
+      } catch (e) {}
+      return fetch(`${API_BASE}/api${path}`, options);
+    }
+
+    function switchTab(name, ev) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      event.target.classList.add('active');
+      if (ev && ev.target) ev.target.classList.add('active');
       document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'workers') loadWorkers();
+      if (name === 'tasks') loadTasks();
+      if (name === 'reviews') loadReviews();
     }
 
     async function checkHealth() {
       const indicator = document.getElementById('api-status');
       const label = document.getElementById('api-label');
       try {
-        const res = await fetch(API_BASE + '/api/health');
+        const res = await apiFetch('/health');
         if (res.ok) {
           indicator.className = 'indicator online';
-          label.textContent = 'API Connected';
+          label.textContent = 'Connected';
         } else {
           indicator.className = 'indicator offline';
           label.textContent = 'API Error';
@@ -247,25 +304,37 @@
 
     async function loadWorkers() {
       const container = document.getElementById('workers-list');
+      const select = document.getElementById('task-worker');
       try {
-        const res = await fetch(API_BASE + '/api/workers');
+        const res = await apiFetch('/workers');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const workers = Array.isArray(data) ? data : (data.workers || []);
+        knownWorkers = workers;
+
         if (workers.length === 0) {
-          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No workers configured.</div>';
+          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No active workers registered.</div>';
           return;
         }
+
+        // Update task select dropdown
+        select.innerHTML = workers.map(w =>
+          `<option value="${w.id}">${w.name || w.id} (${w.role || 'Worker'})</option>`
+        ).join('');
+
         container.innerHTML = workers.map(w => `
           <div class="card">
             <div class="card-header">
               <span class="card-title">${w.name || w.id}</span>
-              <span class="badge" style="color:${w.status === 'online' ? 'var(--success)' : 'var(--text-muted)'}">${w.status || 'idle'}</span>
+              <span class="status-tag ${w.status || 'idle'}">${w.status || 'idle'}</span>
             </div>
-            <div style="font-size:12px;color:var(--text-muted)">${w.role || 'Autonomous Worker'}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${w.description || w.role || 'Autonomous Worker'}</div>
+            <div class="chip-container">
+              ${(w.capabilities || []).map(c => `<span class="chip">${c}</span>`).join('')}
+            </div>
             <div class="meta-row">
               <span>Profile v${w.current_profile_version || 1}</span>
-              <span>Capabilities: ${(w.capabilities || []).length}</span>
+              <span>Runtime: ${w.runtime || 'standard'}</span>
             </div>
           </div>
         `).join('');
@@ -277,23 +346,24 @@
     async function loadTasks() {
       const container = document.getElementById('tasks-list');
       try {
-        const res = await fetch(API_BASE + '/api/tasks');
+        const res = await apiFetch('/tasks');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const tasks = Array.isArray(data) ? data : (data.tasks || []);
         if (tasks.length === 0) {
-          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No active tasks.</div>';
+          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No tasks recorded.</div>';
           return;
         }
         container.innerHTML = tasks.map(t => `
           <div class="card">
             <div class="card-header">
-              <span class="card-title">${t.title || t.id}</span>
-              <span class="badge">${t.status}</span>
+              <span class="card-title">${t.title || t.id.slice(0, 8)}</span>
+              <span class="status-tag ${t.status}">${t.status}</span>
             </div>
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${t.objective || ''}</div>
             <div class="meta-row">
-              <span>Assigned: ${t.worker_id || 'unassigned'}</span>
+              <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
+              <span>Priority: ${t.priority || 'medium'}</span>
               <span>Gen: ${t.execution_generation || 1}</span>
             </div>
           </div>
@@ -303,29 +373,114 @@
       }
     }
 
+    async function loadReviews() {
+      const container = document.getElementById('reviews-list');
+      try {
+        const res = await apiFetch('/tasks/review');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const tasks = await res.json();
+        if (!tasks || tasks.length === 0) {
+          container.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:20px;">No tasks currently pending review.</div>';
+          return;
+        }
+        container.innerHTML = tasks.map(t => `
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">${t.title || t.id.slice(0, 8)}</span>
+              <span class="status-tag review">Review</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${t.objective || ''}</div>
+            <div class="meta-row" style="margin-bottom:10px">
+              <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
+              <span>Gen: ${t.execution_generation || 1}</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-success" style="flex:1" onclick="approveTask('${t.id}', ${t.execution_generation || 1})">Approve</button>
+              <button class="btn btn-danger" style="flex:1" onclick="rejectTask('${t.id}', ${t.execution_generation || 1})">Reject</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="card" style="color:var(--danger)">Failed to load review queue: ' + e.message + '</div>';
+      }
+    }
+
+    async function approveTask(taskId, gen) {
+      const reason = prompt('Approval justification (at least 10 chars):', 'Deliverables reviewed and approved for resolution.');
+      if (!reason || reason.trim().length < 10) {
+        alert('Reason must be at least 10 characters.');
+        return;
+      }
+      try {
+        const res = await apiFetch(`/tasks/${taskId}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: reason.trim(),
+            expected_generation: gen,
+            reset_retries: true
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        alert('Task approved successfully!');
+        loadReviews();
+        loadTasks();
+      } catch (e) {
+        alert('Approval failed: ' + e.message);
+      }
+    }
+
+    async function rejectTask(taskId, gen) {
+      const reason = prompt('Rejection reason (at least 10 chars):', 'Deliverables did not meet specification.');
+      if (!reason || reason.trim().length < 10) {
+        alert('Reason must be at least 10 characters.');
+        return;
+      }
+      try {
+        const res = await apiFetch(`/tasks/${taskId}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: reason.trim(),
+            expected_generation: gen
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        alert('Task rejected.');
+        loadReviews();
+        loadTasks();
+      } catch (e) {
+        alert('Rejection failed: ' + e.message);
+      }
+    }
+
     async function submitTask() {
       const workerId = document.getElementById('task-worker').value;
       const title = document.getElementById('task-title').value.trim();
       const objective = document.getElementById('task-objective').value.trim();
+      const priority = document.getElementById('task-priority').value;
+
       if (!title || !objective) {
-        alert('Please provide title and objective.');
+        alert('Please provide a task title and objective.');
         return;
       }
+
       try {
-        const res = await fetch(API_BASE + '/api/tasks', {
+        const res = await apiFetch('/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             worker_id: workerId,
             title: title,
-            objective: objective
+            objective: objective,
+            priority: priority
           })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         alert('Task successfully dispatched to PersonaOS!');
         document.getElementById('task-title').value = '';
         document.getElementById('task-objective').value = '';
-        loadTasks();
+        switchTab('tasks');
       } catch (e) {
         alert('Dispatch failed: ' + e.message);
       }
@@ -337,9 +492,11 @@
     loadTasks();
     setInterval(() => {
       checkHealth();
-      loadWorkers();
-      loadTasks();
-    }, 5000);
+      const activeTab = document.querySelector('.tab-content.active');
+      if (activeTab && activeTab.id === 'tab-workers') loadWorkers();
+      if (activeTab && activeTab.id === 'tab-tasks') loadTasks();
+      if (activeTab && activeTab.id === 'tab-reviews') loadReviews();
+    }, 4000);
   </script>
 </body>
 </html>
