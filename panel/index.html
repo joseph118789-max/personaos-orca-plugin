@@ -311,17 +311,98 @@
       memoryStore[key] = val;
     }
 
-    var candidates = [
-      'http://192.168.1.239:8000',
-      'http://localhost:8000',
-      'http://127.0.0.1:8000'
-    ];
-
     var savedUrl = safeStorageGet('personaos_api_url');
     var activeApiBase = savedUrl || 'http://192.168.1.239:8000';
 
     var inputEl = document.getElementById('api-url-input');
     if (inputEl) inputEl.value = activeApiBase;
+
+    function probeUrl(baseUrl, timeoutMs) {
+      timeoutMs = timeoutMs || 1500;
+      return new Promise(function(resolve) {
+        if (!baseUrl) return resolve(false);
+        var controller;
+        var timer;
+        try {
+          controller = new AbortController();
+          timer = setTimeout(function() {
+            try { controller.abort(); } catch (e) {}
+            resolve(false);
+          }, timeoutMs);
+        } catch (e) {}
+        var fetchOpts = { method: 'GET' };
+        if (controller) fetchOpts.signal = controller.signal;
+
+        fetch(baseUrl.replace(/\/+$/, '') + '/health', fetchOpts)
+          .then(function(res) {
+            if (timer) clearTimeout(timer);
+            resolve(res.ok);
+          })
+          .catch(function() {
+            if (timer) clearTimeout(timer);
+            resolve(false);
+          });
+      });
+    }
+
+    function getCandidateEndpoints() {
+      var list = [];
+      var saved = safeStorageGet('personaos_api_url');
+      if (saved) list.push(saved);
+
+      try {
+        if (document.referrer) {
+          var refUrl = new URL(document.referrer);
+          if (refUrl.hostname && refUrl.hostname !== 'localhost' && refUrl.hostname !== '127.0.0.1') {
+            list.push('http://' + refUrl.hostname + ':8000');
+          }
+        }
+      } catch (e) {}
+
+      list.push('http://192.168.1.239:8000');
+      list.push('http://localhost:8000');
+      list.push('http://127.0.0.1:8000');
+
+      var seen = {};
+      var result = [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i] ? list[i].replace(/\/+$/, '') : '';
+        if (item && !seen[item]) {
+          seen[item] = true;
+          result.push(item);
+        }
+      }
+      return result;
+    }
+
+    async function autoDetectActiveEndpoint() {
+      var endpoints = getCandidateEndpoints();
+      if (activeApiBase && await probeUrl(activeApiBase, 1200)) {
+        return activeApiBase;
+      }
+      for (var i = 0; i < endpoints.length; i++) {
+        var ep = endpoints[i];
+        if (ep === activeApiBase) continue;
+        if (await probeUrl(ep, 1200)) {
+          activeApiBase = ep;
+          safeStorageSet('personaos_api_url', ep);
+          var input = document.getElementById('api-url-input');
+          if (input) input.value = ep;
+          return ep;
+        }
+      }
+      return activeApiBase;
+    }
+
+    function runAutoDetect() {
+      var label = document.getElementById('api-label');
+      if (label) label.textContent = 'Auto-detecting...';
+      autoDetectActiveEndpoint().then(function() {
+        checkHealth();
+        loadWorkers();
+        loadTasks();
+      });
+    }
 
     function toggleApiBar() {
       var bar = document.getElementById('api-bar');
@@ -353,31 +434,61 @@
       saveCustomApiUrl();
     }
 
-    async function apiFetch(path, options = {}) {
+    async function apiFetch(path, options) {
+      options = options || {};
+
+      function doFetch(base, prefix) {
+        var target = base + (prefix || '') + path;
+        return new Promise(function(resolve, reject) {
+          var controller;
+          var timer;
+          try {
+            controller = new AbortController();
+            timer = setTimeout(function() {
+              try { controller.abort(); } catch (e) {}
+              reject(new Error('timeout'));
+            }, 3000);
+          } catch (e) {}
+          var opts = Object.assign({}, options);
+          if (controller) opts.signal = controller.signal;
+          fetch(target, opts)
+            .then(function(r) {
+              if (timer) clearTimeout(timer);
+              resolve(r);
+            })
+            .catch(function(err) {
+              if (timer) clearTimeout(timer);
+              reject(err);
+            });
+        });
+      }
+
       // 1. Try active URL directly
       try {
-        const res = await fetch(`${activeApiBase}${path}`, options);
+        var res = await doFetch(activeApiBase, '');
         if (res.ok || res.status !== 404) return res;
       } catch (e) {}
 
       // 2. Try with /api prefix
       try {
-        const res = await fetch(`${activeApiBase}/api${path}`, options);
-        if (res.ok || res.status !== 404) return res;
+        var res2 = await doFetch(activeApiBase, '/api');
+        if (res2.ok || res2.status !== 404) return res2;
       } catch (e) {}
 
       // 3. Fallback: probe candidates if active is unreachable
-      for (var i = 0; i < candidates.length; i++) {
-        var c = candidates[i];
+      var endpoints = getCandidateEndpoints();
+      for (var i = 0; i < endpoints.length; i++) {
+        var c = endpoints[i];
         if (c === activeApiBase) continue;
         try {
-          var res = await fetch(`${c}${path}`, options);
-          if (res.ok) {
+          var res3 = await doFetch(c, '');
+          if (res3.ok) {
             activeApiBase = c;
             safeStorageSet('personaos_api_url', c);
             var input = document.getElementById('api-url-input');
             if (input) input.value = c;
-            return res;
+            checkHealth();
+            return res3;
           }
         } catch (e) {}
       }
@@ -454,16 +565,28 @@
           </div>
         `).join('');
       } catch (e) {
+        var isLocalhost = activeApiBase.indexOf('localhost') !== -1 || activeApiBase.indexOf('127.0.0.1') !== -1;
         container.innerHTML = `
           <div class="card" style="border-color:var(--danger)">
             <div style="font-weight:600;color:var(--danger);margin-bottom:6px">Connection Error: ${e.message}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
               Cannot reach PersonaOS API at <code>${activeApiBase}</code>.<br/>
-              Select an endpoint below or enter custom URL:
+              ${isLocalhost ? `
+                <div style="margin:10px 0;padding:8px 10px;background:rgba(239,68,68,0.1);border-radius:6px;border:1px solid rgba(239,68,68,0.25);color:var(--text)">
+                  <div style="font-weight:600;color:var(--warning);margin-bottom:4px;">Remote Client Environment Notice</div>
+                  <div style="font-size:11px;margin-bottom:6px;">Port 8000 is running on host <code>192.168.1.239</code>. To use <code>localhost:8000</code> from your local machine:</div>
+                  <div style="font-size:11px;"><strong>Option A (Recommended):</strong> Connect directly via LAN:</div>
+                  <div style="margin:4px 0 8px 0;"><button class="btn btn-sm" style="background:var(--success);font-weight:600" onclick="switchCandidate('http://192.168.1.239:8000')">Connect to 192.168.1.239:8000</button></div>
+                  <div style="font-size:11px;"><strong>Option B:</strong> Forward port 8000 on your Mac/PC:</div>
+                  <code style="display:block;margin-top:3px;padding:4px 6px;background:var(--bg-primary);border-radius:4px;font-size:11px;font-family:monospace;user-select:all;">ssh -N -L 8000:127.0.0.1:8000 root@192.168.1.239</code>
+                </div>
+              ` : ''}
+              Select an endpoint below or auto-detect:
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://192.168.1.239:8000')">Use 192.168.1.239:8000</button>
               <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://localhost:8000')">Use localhost:8000</button>
+              <button class="btn btn-sm btn-secondary" onclick="runAutoDetect()">Auto-Detect Host</button>
               <button class="btn btn-sm" onclick="toggleApiBar()">Custom URL</button>
             </div>
           </div>
@@ -614,8 +737,9 @@
       }
     }
 
-    // Auto-probe health on boot and start refresh loop
-    checkHealth().then(function() {
+    // Auto-detect working endpoint on boot, then load boards
+    autoDetectActiveEndpoint().then(function() {
+      checkHealth();
       loadWorkers();
       loadTasks();
     });
