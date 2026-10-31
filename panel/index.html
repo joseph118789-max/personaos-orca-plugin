@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PersonaOS Workforce Bridge</title>
+  <style>
+    :root {
+      --bg-primary: #18181b;
+      --bg-secondary: #27272a;
+      --bg-card: #202023;
+      --border: #3f3f46;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text);
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+    }
+    .indicator {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+    .indicator.online { background: var(--success); }
+    .indicator.offline { background: var(--danger); }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--bg-secondary);
+      color: var(--text);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .card-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: #323238; }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    label {
+      display: block;
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    input, textarea, select {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span>PersonaOS Workforce</span>
+    </div>
+    <div class="badge">
+      <span class="indicator" id="api-status"></span>
+      <span id="api-label">Checking...</span>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('workers')">Workers</button>
+    <button class="tab-btn" onclick="switchTab('tasks')">Tasks</button>
+    <button class="tab-btn" onclick="switchTab('dispatch')">New Task</button>
+    <button class="tab-btn" onclick="switchTab('reviews')">Reviews</button>
+  </div>
+
+  <!-- Workers Tab -->
+  <div id="tab-workers" class="tab-content active">
+    <div id="workers-list">Loading workers...</div>
+  </div>
+
+  <!-- Tasks Tab -->
+  <div id="tab-tasks" class="tab-content">
+    <div id="tasks-list">Loading active tasks...</div>
+  </div>
+
+  <!-- New Task Tab -->
+  <div id="tab-dispatch" class="tab-content">
+    <div class="card">
+      <div class="form-group">
+        <label>Assign Worker</label>
+        <select id="task-worker">
+          <option value="se">Software Engineer (se)</option>
+          <option value="qa">QA Engineer (qa)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Task Title</label>
+        <input type="text" id="task-title" placeholder="e.g. Implement user authentication endpoint" />
+      </div>
+      <div class="form-group">
+        <label>Objective & Instructions</label>
+        <textarea id="task-objective" rows="4" placeholder="Detail the work to be done..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Worktree Context</label>
+        <input type="text" id="task-worktree" placeholder="Active worktree path" readonly />
+      </div>
+      <button class="btn" style="width: 100%" onclick="submitTask()">Dispatch to PersonaOS</button>
+    </div>
+  </div>
+
+  <!-- Reviews Tab -->
+  <div id="tab-reviews" class="tab-content">
+    <div id="reviews-list">No pending reviews.</div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8000';
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    async function checkHealth() {
+      const indicator = document.getElementById('api-status');
+      const label = document.getElementById('api-label');
+      try {
+        const res = await fetch(API_BASE + '/api/health');
+        if (res.ok) {
+          indicator.className = 'indicator online';
+          label.textContent = 'API Connected';
+        } else {
+          indicator.className = 'indicator offline';
+          label.textContent = 'API Error';
+        }
+      } catch (e) {
+        indicator.className = 'indicator offline';
+        label.textContent = 'Offline';
+      }
+    }
+
+    async function loadWorkers() {
+      const container = document.getElementById('workers-list');
+      try {
+        const res = await fetch(API_BASE + '/api/workers');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const workers = Array.isArray(data) ? data : (data.workers || []);
+        if (workers.length === 0) {
+          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No workers configured.</div>';
+          return;
+        }
+        container.innerHTML = workers.map(w => `
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">${w.name || w.id}</span>
+              <span class="badge" style="color:${w.status === 'online' ? 'var(--success)' : 'var(--text-muted)'}">${w.status || 'idle'}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">${w.role || 'Autonomous Worker'}</div>
+            <div class="meta-row">
+              <span>Profile v${w.current_profile_version || 1}</span>
+              <span>Capabilities: ${(w.capabilities || []).length}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="card" style="color:var(--danger)">Failed to load workers: ' + e.message + '</div>';
+      }
+    }
+
+    async function loadTasks() {
+      const container = document.getElementById('tasks-list');
+      try {
+        const res = await fetch(API_BASE + '/api/tasks');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const tasks = Array.isArray(data) ? data : (data.tasks || []);
+        if (tasks.length === 0) {
+          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No active tasks.</div>';
+          return;
+        }
+        container.innerHTML = tasks.map(t => `
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">${t.title || t.id}</span>
+              <span class="badge">${t.status}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${t.objective || ''}</div>
+            <div class="meta-row">
+              <span>Assigned: ${t.worker_id || 'unassigned'}</span>
+              <span>Gen: ${t.execution_generation || 1}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="card" style="color:var(--danger)">Failed to load tasks: ' + e.message + '</div>';
+      }
+    }
+
+    async function submitTask() {
+      const workerId = document.getElementById('task-worker').value;
+      const title = document.getElementById('task-title').value.trim();
+      const objective = document.getElementById('task-objective').value.trim();
+      if (!title || !objective) {
+        alert('Please provide title and objective.');
+        return;
+      }
+      try {
+        const res = await fetch(API_BASE + '/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            worker_id: workerId,
+            title: title,
+            objective: objective
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        alert('Task successfully dispatched to PersonaOS!');
+        document.getElementById('task-title').value = '';
+        document.getElementById('task-objective').value = '';
+        loadTasks();
+      } catch (e) {
+        alert('Dispatch failed: ' + e.message);
+      }
+    }
+
+    // Initial load and periodic refresh
+    checkHealth();
+    loadWorkers();
+    loadTasks();
+    setInterval(() => {
+      checkHealth();
+      loadWorkers();
+      loadTasks();
+    }, 5000);
+  </script>
+</body>
+</html>
