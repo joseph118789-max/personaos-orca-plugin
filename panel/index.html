@@ -28,7 +28,7 @@
     body {
       background-color: var(--bg-primary);
       color: var(--text);
-      padding: 14px;
+      padding: 12px;
       font-size: 13px;
       line-height: 1.5;
     }
@@ -36,16 +36,16 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-bottom: 12px;
+      padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
     .title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
     .badge {
       display: inline-flex;
@@ -56,6 +56,7 @@
       border-radius: 9999px;
       background: var(--bg-secondary);
       border: 1px solid var(--border);
+      cursor: pointer;
     }
     .indicator {
       width: 7px;
@@ -65,16 +66,37 @@
     }
     .indicator.online { background: var(--success); }
     .indicator.offline { background: var(--danger); }
-    .tabs {
+
+    .api-config-bar {
       display: flex;
       gap: 6px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      align-items: center;
+    }
+    .api-config-bar input {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 11px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
     }
     .tab-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 6px 10px;
+      padding: 5px 8px;
       border-radius: 6px;
       font-size: 12px;
       cursor: pointer;
@@ -133,6 +155,7 @@
       transition: background 0.2s;
     }
     .btn:hover { background: var(--accent-hover); }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
     .btn-secondary {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
@@ -204,11 +227,16 @@
     <div class="title">
       <span>PersonaOS Workforce</span>
     </div>
-    <div class="badge">
+    <div class="badge" onclick="toggleApiBar()" title="Click to change API endpoint">
       <span class="indicator" id="api-status"></span>
       <span id="api-label">Connecting...</span>
     </div>
   </header>
+
+  <div id="api-bar" class="api-config-bar" style="display:none;">
+    <input type="text" id="api-url-input" placeholder="http://192.168.1.239:8000 or http://localhost:8000" />
+    <button class="btn btn-sm" onclick="saveCustomApiUrl()">Save</button>
+  </div>
 
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('workers', event)">Workers</button>
@@ -263,15 +291,69 @@
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:8000';
-    let knownWorkers = [];
+    // Candidate API hosts ordered by priority
+    const candidates = [
+      localStorage.getItem('personaos_api_url'),
+      'http://192.168.1.239:8000',
+      'http://localhost:8000',
+      'http://127.0.0.1:8000'
+    ].filter(Boolean);
+
+    let activeApiBase = candidates[0] || 'http://192.168.1.239:8000';
+    document.getElementById('api-url-input').value = activeApiBase;
+
+    function toggleApiBar() {
+      const bar = document.getElementById('api-bar');
+      bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function saveCustomApiUrl() {
+      let val = document.getElementById('api-url-input').value.trim();
+      if (!val) return;
+      if (!val.startsWith('http')) val = 'http://' + val;
+      val = val.replace(/\/+$/, '');
+      activeApiBase = val;
+      localStorage.setItem('personaos_api_url', val);
+      document.getElementById('api-bar').style.display = 'none';
+      checkHealth().then(() => {
+        loadWorkers();
+        loadTasks();
+      });
+    }
+
+    function switchCandidate(url) {
+      document.getElementById('api-url-input').value = url;
+      saveCustomApiUrl();
+    }
 
     async function apiFetch(path, options = {}) {
+      // 1. Try active URL directly
       try {
-        const res = await fetch(`${API_BASE}${path}`, options);
+        const res = await fetch(`${activeApiBase}${path}`, options);
         if (res.ok || res.status !== 404) return res;
       } catch (e) {}
-      return fetch(`${API_BASE}/api${path}`, options);
+
+      // 2. Try with /api prefix
+      try {
+        const res = await fetch(`${activeApiBase}/api${path}`, options);
+        if (res.ok || res.status !== 404) return res;
+      } catch (e) {}
+
+      // 3. Fallback: probe candidates if active is unreachable
+      for (const c of candidates) {
+        if (c === activeApiBase) continue;
+        try {
+          const res = await fetch(`${c}${path}`, options);
+          if (res.ok) {
+            activeApiBase = c;
+            localStorage.setItem('personaos_api_url', c);
+            document.getElementById('api-url-input').value = c;
+            return res;
+          }
+        } catch (e) {}
+      }
+
+      throw new Error(`Failed to fetch from ${activeApiBase}`);
     }
 
     function switchTab(name, ev) {
@@ -310,14 +392,12 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const workers = Array.isArray(data) ? data : (data.workers || []);
-        knownWorkers = workers;
 
         if (workers.length === 0) {
           container.innerHTML = '<div class="card" style="color:var(--text-muted)">No active workers registered.</div>';
           return;
         }
 
-        // Update task select dropdown
         select.innerHTML = workers.map(w =>
           `<option value="${w.id}">${w.name || w.id} (${w.role || 'Worker'})</option>`
         ).join('');
@@ -339,7 +419,20 @@
           </div>
         `).join('');
       } catch (e) {
-        container.innerHTML = '<div class="card" style="color:var(--danger)">Failed to load workers: ' + e.message + '</div>';
+        container.innerHTML = `
+          <div class="card" style="border-color:var(--danger)">
+            <div style="font-weight:600;color:var(--danger);margin-bottom:6px">Connection Error: ${e.message}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+              Cannot reach PersonaOS API at <code>${activeApiBase}</code>.<br/>
+              If running Orca on a desktop client, connect to the host IP or forward port 8000:
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://192.168.1.239:8000')">Use 192.168.1.239:8000</button>
+              <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://localhost:8000')">Use localhost:8000</button>
+              <button class="btn btn-sm" onclick="toggleApiBar()">Custom URL</button>
+            </div>
+          </div>
+        `;
       }
     }
 
@@ -486,10 +579,12 @@
       }
     }
 
-    // Initial load and periodic refresh
-    checkHealth();
-    loadWorkers();
-    loadTasks();
+    // Auto-probe health on boot and start refresh loop
+    checkHealth().then(() => {
+      loadWorkers();
+      loadTasks();
+    });
+
     setInterval(() => {
       checkHealth();
       const activeTab = document.querySelector('.tab-content.active');
