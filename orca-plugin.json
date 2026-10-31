@@ -1,5 +1,5 @@
 {
-  "$schema": "https://orca.run/schemas/orca-plugin-v2.json",
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
   "manifestVersion": 2,
   "id": "personaos-bridge",
   "publisher": "joseph118789-max",
