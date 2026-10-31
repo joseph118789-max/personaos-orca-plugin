@@ -17,7 +17,7 @@ Visual ADE extension connecting [Orca ADE](https://orca.run) workspaces to the p
 3. Select **Install plugin** → Choose **Git**.
 4. Enter the pinned repository URL with an explicit `#ref` (tag or commit):
    ```
-   https://github.com/joseph118789-max/personaos-orca-plugin#v0.1.0
+   https://github.com/joseph118789-max/personaos-orca-plugin#v0.1.1
    ```
 5. Click **Install**. Review the requested capabilities (`workspace:read`, `notifications:show`) and toggle **Enable**.
 
