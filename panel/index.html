@@ -227,9 +227,12 @@
     <div class="title">
       <span>PersonaOS Workforce</span>
     </div>
-    <div class="badge" onclick="toggleApiBar()" title="Click to change API endpoint">
-      <span class="indicator" id="api-status"></span>
-      <span id="api-label">Connecting...</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:var(--bg-secondary);border:1px solid var(--border)" onclick="copyDashboardUrl()" title="Copy Web Dashboard URL to clipboard">ADE Dashboard</button>
+      <div class="badge" onclick="toggleApiBar()" title="Click to change API endpoint">
+        <span class="indicator" id="api-status"></span>
+        <span id="api-label">Connecting...</span>
+      </div>
     </div>
   </header>
 
@@ -317,6 +320,19 @@
     var inputEl = document.getElementById('api-url-input');
     if (inputEl) inputEl.value = activeApiBase;
 
+    function copyDashboardUrl() {
+      var dashUrl = (activeApiBase || 'http://192.168.1.239:8000') + '/dashboard';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(dashUrl).then(function() {
+          alert('Copied ADE Dashboard URL:\n' + dashUrl + '\n\nOpen this in your browser or an Orca Browser Tab.');
+        }).catch(function() {
+          prompt('Copy ADE Dashboard URL:', dashUrl);
+        });
+      } else {
+        prompt('Copy ADE Dashboard URL:', dashUrl);
+      }
+    }
+
     function probeUrl(baseUrl, timeoutMs) {
       timeoutMs = timeoutMs || 1500;
       return new Promise(function(resolve) {
@@ -330,10 +346,16 @@
             resolve(false);
           }, timeoutMs);
         } catch (e) {}
-        var fetchOpts = { method: 'GET' };
+        var fetchOpts = { method: 'GET', mode: 'cors' };
         if (controller) fetchOpts.signal = controller.signal;
+        var cleanUrl = baseUrl.replace(/\/+$/, '');
+        if (/localhost|127\.0\.0\.1/.test(cleanUrl)) {
+          fetchOpts.targetAddressSpace = 'loopback';
+        } else if (/192\.168\./.test(cleanUrl)) {
+          fetchOpts.targetAddressSpace = 'local';
+        }
 
-        fetch(baseUrl.replace(/\/+$/, '') + '/health', fetchOpts)
+        fetch(cleanUrl + '/health', fetchOpts)
           .then(function(res) {
             if (timer) clearTimeout(timer);
             resolve(res.ok);
@@ -449,8 +471,13 @@
               reject(new Error('timeout'));
             }, 3000);
           } catch (e) {}
-          var opts = Object.assign({}, options);
+          var opts = Object.assign({ mode: 'cors' }, options);
           if (controller) opts.signal = controller.signal;
+          if (/localhost|127\.0\.0\.1/.test(target)) {
+            opts.targetAddressSpace = 'loopback';
+          } else if (/192\.168\./.test(target)) {
+            opts.targetAddressSpace = 'local';
+          }
           fetch(target, opts)
             .then(function(r) {
               if (timer) clearTimeout(timer);
@@ -587,6 +614,7 @@
               <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://192.168.1.239:8000')">Use 192.168.1.239:8000</button>
               <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://localhost:8000')">Use localhost:8000</button>
               <button class="btn btn-sm btn-secondary" onclick="runAutoDetect()">Auto-Detect Host</button>
+              <button class="btn btn-sm btn-secondary" onclick="copyDashboardUrl()">Copy ADE URL</button>
               <button class="btn btn-sm" onclick="toggleApiBar()">Custom URL</button>
             </div>
           </div>
