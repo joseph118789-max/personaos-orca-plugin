@@ -11,12 +11,16 @@
   },
   "repository": "https://github.com/joseph118789-max/personaos-orca-plugin",
   "engines": {
-    "orca": ">=1.0.0"
+    "orca": ">=1.4.245"
   },
   "execution": "declarative",
   "contributes": {},
   "capabilities": [
-    "workspace:read",
-    "notifications:show"
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "notifications:show"
+    }
   ]
 }
