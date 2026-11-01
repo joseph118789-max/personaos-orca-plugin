@@ -276,17 +276,93 @@
       opacity: 1;
       transform: translateX(-50%) translateY(-2px);
     }
+
+    /* Modal dialog */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      padding: 14px;
+    }
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .modal-title {
+      font-weight: 600;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
   <div id="toast">Copied to clipboard</div>
+
+  <!-- Modal: Launch ADE Browser Tab in Orca -->
+  <div id="ade-browser-modal" class="modal-overlay" style="display:none;" onclick="handleModalBackdropClick(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">🌐 Launch ADE Browser in Orca</span>
+        <button class="btn btn-sm btn-secondary" onclick="closeAdeModal()">✕</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text);margin-bottom:10px;">
+        To open the live Workforce Dashboard inside Orca IDE's built-in Browser Tab:
+      </div>
+
+      <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;border:1px solid var(--border);margin-bottom:10px;">
+        <div style="font-weight:600;font-size:11px;color:var(--success);margin-bottom:4px;display:flex;align-items:center;gap:4px;">
+          <span>⚡ Method 1: In Orca Terminal (Instant Tab Creation)</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">
+          Run this single command in Orca's integrated terminal (Ctrl+` or Cmd+`):
+        </div>
+        <div class="code-block" id="modal-tab-cmd">orca tab create --url http://192.168.1.239:8000/dashboard</div>
+        <button class="btn btn-sm btn-success" style="width:100%;font-weight:600;margin-top:4px;" onclick="copyOrcaTabCreateCmd()">Copy Terminal Command</button>
+      </div>
+
+      <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;border:1px solid var(--border);margin-bottom:12px;">
+        <div style="font-weight:600;font-size:11px;color:var(--info);margin-bottom:4px;">
+          <span>🔍 Method 2: Orca Palette / Omnibox</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">
+          Press <code>Cmd+P</code> (or <code>Ctrl+P</code>) in Orca, paste this URL, and hit Enter:
+        </div>
+        <div class="code-block" id="modal-url">http://192.168.1.239:8000/dashboard</div>
+        <button class="btn btn-sm btn-secondary" style="width:100%;margin-top:4px;" onclick="copyModalUrl()">Copy Dashboard URL</button>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="btn btn-sm btn-secondary" onclick="closeAdeModal()">Done</button>
+      </div>
+    </div>
+  </div>
 
   <header>
     <div class="title">
       <span>PersonaOS Workforce</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px">
-      <button class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:var(--bg-secondary);border:1px solid var(--border)" onclick="copyDashboardUrl()" title="Copy Web Dashboard URL to clipboard">ADE Dashboard</button>
+      <button class="btn btn-sm btn-success" style="font-size:11px;padding:3px 10px;font-weight:600;" onclick="openAdeModal()" title="Open live ADE Browser in Orca">Open ADE Browser</button>
       <div class="badge" onclick="toggleApiBar()" title="Click to change API endpoint">
         <span class="indicator" id="api-status"></span>
         <span id="api-label">Checking...</span>
@@ -417,9 +493,38 @@
       }
     }
 
+    function openAdeModal() {
+      var m = document.getElementById('ade-browser-modal');
+      if (m) m.style.display = 'flex';
+      var cmdEl = document.getElementById('modal-tab-cmd');
+      if (cmdEl) cmdEl.textContent = 'orca tab create --url ' + activeApiBase + '/dashboard';
+      var urlEl = document.getElementById('modal-url');
+      if (urlEl) urlEl.textContent = activeApiBase + '/dashboard';
+    }
+
+    function closeAdeModal() {
+      var m = document.getElementById('ade-browser-modal');
+      if (m) m.style.display = 'none';
+    }
+
+    function handleModalBackdropClick(ev) {
+      if (ev.target && ev.target.id === 'ade-browser-modal') {
+        closeAdeModal();
+      }
+    }
+
+    function copyOrcaTabCreateCmd() {
+      var cmd = 'orca tab create --url ' + activeApiBase + '/dashboard';
+      copyToClipboard(cmd, 'Terminal command copied! Paste into Orca terminal and press Enter.');
+    }
+
+    function copyModalUrl() {
+      var url = activeApiBase + '/dashboard';
+      copyToClipboard(url, 'Dashboard URL copied! Paste into Orca Cmd+P.');
+    }
+
     function copyDashboardUrl() {
-      var dashUrl = (activeApiBase || 'http://192.168.1.239:8000') + '/dashboard';
-      copyToClipboard(dashUrl, 'ADE Dashboard URL copied!');
+      openAdeModal();
     }
 
     function copyDispatchCommand() {
@@ -674,19 +779,18 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" style="border-color:var(--success);">
           <div class="card-header">
-            <span class="card-title">1. Live ADE Web Dashboard</span>
+            <span class="card-title">1. Launch ADE Browser in Orca</span>
             <span class="status-tag idle">Running</span>
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
             The PersonaOS Control Plane and ADE Dashboard are fully operational on <code>${activeApiBase}</code>.
-            Open in Orca's internal Browser Tab or your desktop browser:
+            Click below to open in Orca's internal Browser Tab or your desktop browser:
           </div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button class="btn btn-sm btn-success" style="flex:1;font-weight:600" onclick="copyDashboardUrl()">Copy ADE Dashboard URL</button>
-            <button class="btn btn-sm btn-secondary" onclick="runAutoDetect()">Test Link</button>
-          </div>
+          <button class="btn btn-sm btn-success" style="width:100%;font-weight:600;padding:6px 12px;" onclick="openAdeModal()">
+            🌐 Launch ADE Browser Tab
+          </button>
         </div>
 
         <div class="card">
