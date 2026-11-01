@@ -1063,7 +1063,12 @@
       const container = document.getElementById('workers-list');
       const select = document.getElementById('task-worker');
       try {
-        const res = await apiFetch('/workers');
+        let res;
+        try {
+          res = await apiFetch('/integration/workers');
+        } catch (_) {
+          res = await apiFetch('/workers');
+        }
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const workers = Array.isArray(data) ? data : (data.workers || []);

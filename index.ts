@@ -12,6 +12,7 @@ export * from './contracts'
 import type {
   GatewayDiagnosticsResponse,
   GatewayHealthResponse,
+  GatewayWorkerSummary,
 } from './contracts'
 
 export interface PersonaOSWorker {
@@ -155,17 +156,28 @@ export class PersonaOSOrcaPluginClient {
   }
 
   /**
-   * Fetch list of available persistent workers from PersonaOS.
+   * Fetch list of available persistent workers from PersonaOS Gateway (/integration/workers),
+   * with automatic fallback to /workers endpoint.
    */
-  async listWorkers(): Promise<PersonaOSWorker[]> {
-    const res = await fetch(`${this.apiBaseUrl}/workers`, {
+  async listWorkers(): Promise<GatewayWorkerSummary[]> {
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/integration/workers`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      })
+      if (res.ok) {
+        return (await res.json()) as GatewayWorkerSummary[]
+      }
+    } catch (_) {}
+
+    const fallbackRes = await fetch(`${this.apiBaseUrl}/workers`, {
       method: 'GET',
       headers: this.getHeaders(),
     })
-    if (!res.ok) {
-      throw new Error(`Failed to list PersonaOS workers: ${res.status} ${res.statusText}`)
+    if (!fallbackRes.ok) {
+      throw new Error(`Failed to list PersonaOS workers: ${fallbackRes.status} ${fallbackRes.statusText}`)
     }
-    return (await res.json()) as PersonaOSWorker[]
+    return (await fallbackRes.json()) as GatewayWorkerSummary[]
   }
 
   /**
@@ -182,6 +194,7 @@ export class PersonaOSOrcaPluginClient {
       metadata: options.runId ? { run_id: options.runId } : undefined,
       input: {
         ...(options.inputData || {}),
+        run_id: options.runId,
         worktree: options.worktreeId ? {
           worktree_id: options.worktreeId,
           path: options.worktreePath,
