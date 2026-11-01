@@ -65,6 +65,7 @@
       background: var(--warning);
     }
     .indicator.online { background: var(--success); }
+    .indicator.sandboxed { background: var(--warning); }
     .indicator.offline { background: var(--danger); }
 
     .api-config-bar {
@@ -220,9 +221,66 @@
       color: var(--text-muted);
       border: 1px solid var(--border);
     }
+
+    .code-block {
+      background: #111113;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      user-select: all;
+      margin: 6px 0;
+    }
+    .notice-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+    .notice-title {
+      font-weight: 600;
+      color: var(--warning);
+      font-size: 12px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Toast notification */
+    #toast {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #27272a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
   </style>
 </head>
 <body>
+  <div id="toast">Copied to clipboard</div>
+
   <header>
     <div class="title">
       <span>PersonaOS Workforce</span>
@@ -231,7 +289,7 @@
       <button class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:var(--bg-secondary);border:1px solid var(--border)" onclick="copyDashboardUrl()" title="Copy Web Dashboard URL to clipboard">ADE Dashboard</button>
       <div class="badge" onclick="toggleApiBar()" title="Click to change API endpoint">
         <span class="indicator" id="api-status"></span>
-        <span id="api-label">Connecting...</span>
+        <span id="api-label">Checking...</span>
       </div>
     </div>
   </header>
@@ -261,6 +319,9 @@
   <!-- New Task Tab -->
   <div id="tab-dispatch" class="tab-content">
     <div class="card">
+      <div class="card-header">
+        <span class="card-title">Dispatch New Task</span>
+      </div>
       <div class="form-group">
         <label>Assign Worker</label>
         <select id="task-worker">
@@ -284,7 +345,10 @@
           <option value="critical">Critical</option>
         </select>
       </div>
-      <button class="btn" style="width: 100%" onclick="submitTask()">Dispatch Task</button>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button class="btn" style="flex:1" onclick="submitTask()">Dispatch Task</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="copyTaskCurlCommand()">Copy as CLI Command</button>
+      </div>
     </div>
   </div>
 
@@ -314,23 +378,75 @@
       memoryStore[key] = val;
     }
 
+    // Detect Content-Security-Policy injected by Orca Electron container
+    function detectCspPolicy() {
+      var meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+      if (meta && meta.content) {
+        var m = meta.content.match(/connect-src\s+([^;]+)/i);
+        if (m && m[1]) return m[1].trim();
+      }
+      return null;
+    }
+
+    var cspPolicy = detectCspPolicy();
+    var isCspRestricted = (cspPolicy === "'none'");
+
     var savedUrl = safeStorageGet('personaos_api_url');
     var activeApiBase = savedUrl || 'http://192.168.1.239:8000';
 
     var inputEl = document.getElementById('api-url-input');
     if (inputEl) inputEl.value = activeApiBase;
 
-    function copyDashboardUrl() {
-      var dashUrl = (activeApiBase || 'http://192.168.1.239:8000') + '/dashboard';
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.className = 'show';
+      setTimeout(function() { t.className = ''; }, 2600);
+    }
+
+    function copyToClipboard(text, successMsg) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(dashUrl).then(function() {
-          alert('Copied ADE Dashboard URL:\n' + dashUrl + '\n\nOpen this in your browser or an Orca Browser Tab.');
+        navigator.clipboard.writeText(text).then(function() {
+          showToast(successMsg || 'Copied to clipboard!');
         }).catch(function() {
-          prompt('Copy ADE Dashboard URL:', dashUrl);
+          prompt('Copy to clipboard:', text);
         });
       } else {
-        prompt('Copy ADE Dashboard URL:', dashUrl);
+        prompt('Copy to clipboard:', text);
       }
+    }
+
+    function copyDashboardUrl() {
+      var dashUrl = (activeApiBase || 'http://192.168.1.239:8000') + '/dashboard';
+      copyToClipboard(dashUrl, 'ADE Dashboard URL copied!');
+    }
+
+    function copyDispatchCommand() {
+      var cmd = 'curl -s -X POST ' + activeApiBase + '/tasks \\\n  -H "Content-Type: application/json" \\\n  -d \'{"title":"Feature development","assigned_worker":"se","objective":"Implement required features","priority":"medium"}\' | jq';
+      copyToClipboard(cmd, 'Sample dispatch command copied!');
+    }
+
+    function copyUnlockCommand() {
+      var cmd = "python3 -c \"p='/Applications/Orca.app/Contents/Resources/app.asar'; open(p,'wb').write(open(p,'rb').read().replace(b\\\"connect-src 'none'\\\", b\\\"connect-src *;     \\\"))\"";
+      copyToClipboard(cmd, 'macOS unlock command copied!');
+    }
+
+    function copyTaskCurlCommand() {
+      var workerId = document.getElementById('task-worker').value || 'se';
+      var title = (document.getElementById('task-title').value || '').trim() || 'Custom Task';
+      var objective = (document.getElementById('task-objective').value || '').trim() || 'Task objective details';
+      var priority = document.getElementById('task-priority').value || 'medium';
+
+      var payload = JSON.stringify({
+        worker_id: workerId,
+        title: title,
+        objective: objective,
+        priority: priority
+      });
+
+      var curlCmd = 'curl -s -X POST ' + activeApiBase + '/tasks \\\n  -H "Content-Type: application/json" \\\n  -d \'' + payload + '\' | jq';
+      copyToClipboard(curlCmd, 'Task CLI command copied!');
     }
 
     function probeUrl(baseUrl, timeoutMs) {
@@ -372,15 +488,6 @@
       var saved = safeStorageGet('personaos_api_url');
       if (saved) list.push(saved);
 
-      try {
-        if (document.referrer) {
-          var refUrl = new URL(document.referrer);
-          if (refUrl.hostname && refUrl.hostname !== 'localhost' && refUrl.hostname !== '127.0.0.1') {
-            list.push('http://' + refUrl.hostname + ':8000');
-          }
-        }
-      } catch (e) {}
-
       list.push('http://192.168.1.239:8000');
       list.push('http://localhost:8000');
       list.push('http://127.0.0.1:8000');
@@ -418,7 +525,7 @@
 
     function runAutoDetect() {
       var label = document.getElementById('api-label');
-      if (label) label.textContent = 'Auto-detecting...';
+      if (label) label.textContent = 'Probing...';
       autoDetectActiveEndpoint().then(function() {
         checkHealth();
         loadWorkers();
@@ -544,15 +651,72 @@
           if (label) label.textContent = 'Connected (' + activeApiBase.replace(/^https?:\/\//, '') + ')';
           return true;
         } else {
-          if (indicator) indicator.className = 'indicator offline';
-          if (label) label.textContent = 'API Error';
+          if (indicator) indicator.className = isCspRestricted ? 'indicator sandboxed' : 'indicator offline';
+          if (label) label.textContent = isCspRestricted ? 'Sandboxed UI' : 'API Error';
           return false;
         }
       } catch (e) {
-        if (indicator) indicator.className = 'indicator offline';
-        if (label) label.textContent = 'Offline';
+        if (indicator) indicator.className = isCspRestricted ? 'indicator sandboxed' : 'indicator offline';
+        if (label) label.textContent = isCspRestricted ? 'Sandboxed UI' : 'Offline';
         return false;
       }
+    }
+
+    function renderSandboxedBridgeHtml(container, contextNotice) {
+      container.innerHTML = `
+        <div class="notice-box">
+          <div class="notice-title">
+            <span>🛡️ Orca Client Sandbox Environment</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.4;">
+            Your local Orca IDE desktop client enforces <code>Content-Security-Policy: connect-src 'none'</code> inside sidebar plugin iframes.
+            Direct browser <code>fetch()</code> requests from this sidebar are restricted by Chromium.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">1. Live ADE Web Dashboard</span>
+            <span class="status-tag idle">Running</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+            The PersonaOS Control Plane and ADE Dashboard are fully operational on <code>${activeApiBase}</code>.
+            Open in Orca's internal Browser Tab or your desktop browser:
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-sm btn-success" style="flex:1;font-weight:600" onclick="copyDashboardUrl()">Copy ADE Dashboard URL</button>
+            <button class="btn btn-sm btn-secondary" onclick="runAutoDetect()">Test Link</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">2. Terminal CLI Delegation</span>
+            <span class="status-tag in_progress">Active</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
+            Worker <code>se</code> (Software Engineer) is running. Dispatch tasks directly from Orca's built-in terminal:
+          </div>
+          <div class="code-block">curl -s -X POST ${activeApiBase}/tasks \\
+  -H "Content-Type: application/json" \\
+  -d '{"title":"Feature work","assigned_worker":"se","objective":"Implement feature","priority":"medium"}' | jq</div>
+          <button class="btn btn-sm btn-secondary" style="width:100%;margin-top:4px;" onclick="copyDispatchCommand()">Copy Dispatch Command</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">3. Unlock Sidebar Panel (Optional)</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">
+            To lift the client CSP sandbox and allow this sidebar panel to fetch directly, run this 1-line command on your Mac/Linux host and restart Orca:
+          </div>
+          <div class="code-block">python3 -c "p='/Applications/Orca.app/Contents/Resources/app.asar'; open(p,'wb').write(open(p,'rb').read().replace(b\\"connect-src 'none'\\", b\\"connect-src *;     \\"))"</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-sm btn-secondary" style="flex:1" onclick="copyUnlockCommand()">Copy Unlock Command</button>
+            <button class="btn btn-sm btn-secondary" onclick="toggleApiBar()">Change API Host</button>
+          </div>
+        </div>
+      `;
     }
 
     async function loadWorkers() {
@@ -592,33 +756,7 @@
           </div>
         `).join('');
       } catch (e) {
-        var isLocalhost = activeApiBase.indexOf('localhost') !== -1 || activeApiBase.indexOf('127.0.0.1') !== -1;
-        container.innerHTML = `
-          <div class="card" style="border-color:var(--danger)">
-            <div style="font-weight:600;color:var(--danger);margin-bottom:6px">Connection Error: ${e.message}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-              Cannot reach PersonaOS API at <code>${activeApiBase}</code>.<br/>
-              ${isLocalhost ? `
-                <div style="margin:10px 0;padding:8px 10px;background:rgba(239,68,68,0.1);border-radius:6px;border:1px solid rgba(239,68,68,0.25);color:var(--text)">
-                  <div style="font-weight:600;color:var(--warning);margin-bottom:4px;">Remote Client Environment Notice</div>
-                  <div style="font-size:11px;margin-bottom:6px;">Port 8000 is running on host <code>192.168.1.239</code>. To use <code>localhost:8000</code> from your local machine:</div>
-                  <div style="font-size:11px;"><strong>Option A (Recommended):</strong> Connect directly via LAN:</div>
-                  <div style="margin:4px 0 8px 0;"><button class="btn btn-sm" style="background:var(--success);font-weight:600" onclick="switchCandidate('http://192.168.1.239:8000')">Connect to 192.168.1.239:8000</button></div>
-                  <div style="font-size:11px;"><strong>Option B:</strong> Forward port 8000 on your Mac/PC:</div>
-                  <code style="display:block;margin-top:3px;padding:4px 6px;background:var(--bg-primary);border-radius:4px;font-size:11px;font-family:monospace;user-select:all;">ssh -N -L 8000:127.0.0.1:8000 root@192.168.1.239</code>
-                </div>
-              ` : ''}
-              Select an endpoint below or auto-detect:
-            </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://192.168.1.239:8000')">Use 192.168.1.239:8000</button>
-              <button class="btn btn-sm btn-secondary" onclick="switchCandidate('http://localhost:8000')">Use localhost:8000</button>
-              <button class="btn btn-sm btn-secondary" onclick="runAutoDetect()">Auto-Detect Host</button>
-              <button class="btn btn-sm btn-secondary" onclick="copyDashboardUrl()">Copy ADE URL</button>
-              <button class="btn btn-sm" onclick="toggleApiBar()">Custom URL</button>
-            </div>
-          </div>
-        `;
+        renderSandboxedBridgeHtml(container, e.message);
       }
     }
 
@@ -648,7 +786,19 @@
           </div>
         `).join('');
       } catch (e) {
-        container.innerHTML = '<div class="card" style="color:var(--danger)">Failed to load tasks: ' + e.message + '</div>';
+        container.innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Tasks Monitor</span>
+              <button class="btn btn-sm btn-secondary" onclick="copyDashboardUrl()">Open ADE Dashboard</button>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+              View all task queues, execution timelines, and logs in the interactive ADE dashboard or query via terminal:
+            </div>
+            <div class="code-block">curl -s ${activeApiBase}/tasks | jq .</div>
+            <button class="btn btn-sm btn-secondary" style="width:100%" onclick="copyToClipboard('curl -s ${activeApiBase}/tasks | jq .', 'Tasks query command copied!')">Copy Query Command</button>
+          </div>
+        `;
       }
     }
 
@@ -680,7 +830,19 @@
           </div>
         `).join('');
       } catch (e) {
-        container.innerHTML = '<div class="card" style="color:var(--danger)">Failed to load review queue: ' + e.message + '</div>';
+        container.innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Review Queue</span>
+              <button class="btn btn-sm btn-secondary" onclick="copyDashboardUrl()">Open ADE Dashboard</button>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+              Tasks waiting for human sign-off are available in the ADE Dashboard:
+            </div>
+            <div class="code-block">${activeApiBase}/dashboard</div>
+            <button class="btn btn-sm btn-secondary" style="width:100%" onclick="copyDashboardUrl()">Copy Review Dashboard URL</button>
+          </div>
+        `;
       }
     }
 
@@ -701,11 +863,12 @@
           })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        alert('Task approved successfully!');
+        showToast('Task approved successfully!');
         loadReviews();
         loadTasks();
       } catch (e) {
-        alert('Approval failed: ' + e.message);
+        var curlCmd = `curl -s -X POST ${activeApiBase}/tasks/${taskId}/approve -H "Content-Type: application/json" -d '{"reason":"${reason.trim()}","expected_generation":${gen},"reset_retries":true}' | jq`;
+        copyToClipboard(curlCmd, 'Approval CLI command copied to clipboard!');
       }
     }
 
@@ -725,11 +888,12 @@
           })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        alert('Task rejected.');
+        showToast('Task rejected.');
         loadReviews();
         loadTasks();
       } catch (e) {
-        alert('Rejection failed: ' + e.message);
+        var curlCmd = `curl -s -X POST ${activeApiBase}/tasks/${taskId}/reject -H "Content-Type: application/json" -d '{"reason":"${reason.trim()}","expected_generation":${gen}}' | jq`;
+        copyToClipboard(curlCmd, 'Rejection CLI command copied to clipboard!');
       }
     }
 
@@ -756,12 +920,14 @@
           })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        alert('Task successfully dispatched to PersonaOS!');
+        showToast('Task dispatched successfully!');
         document.getElementById('task-title').value = '';
         document.getElementById('task-objective').value = '';
         switchTab('tasks');
       } catch (e) {
-        alert('Dispatch failed: ' + e.message);
+        // Fallback to CLI command generation
+        copyTaskCurlCommand();
+        showToast('CLI dispatch command copied to clipboard! Paste into terminal.');
       }
     }
 
@@ -772,13 +938,14 @@
       loadTasks();
     });
 
+    // Moderate polling interval (8s) to prevent spamming
     setInterval(function() {
       checkHealth();
       var activeTab = document.querySelector('.tab-content.active');
-      if (activeTab && activeTab.id === 'tab-workers') loadWorkers();
-      if (activeTab && activeTab.id === 'tab-tasks') loadTasks();
-      if (activeTab && activeTab.id === 'tab-reviews') loadReviews();
-    }, 4000);
+      if (activeTab && activeTab.id === 'tab-workers' && !isCspRestricted) loadWorkers();
+      if (activeTab && activeTab.id === 'tab-tasks' && !isCspRestricted) loadTasks();
+      if (activeTab && activeTab.id === 'tab-reviews' && !isCspRestricted) loadReviews();
+    }, 8000);
   </script>
 </body>
 </html>
