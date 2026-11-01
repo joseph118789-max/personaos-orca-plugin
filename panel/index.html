@@ -81,10 +81,37 @@
 
     .controls-bar {
       display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .controls-row {
+      display: flex;
       gap: 6px;
       align-items: center;
       flex-wrap: wrap;
     }
+    .presets-row {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      font-size: 11px;
+    }
+    .btn-preset {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 2px 6px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-preset:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+    }
+
     input, select, button {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
@@ -225,8 +252,17 @@
       font-size: 11px;
       margin-bottom: 12px;
     }
+    .banner-info {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid var(--accent-blue);
+      color: #bae6fd;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 12px;
+      display: none;
+    }
 
-    /* Progress bar */
     .progress-track {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -261,6 +297,8 @@
     <strong>Zero Direct Agent Invariant:</strong> Orca ADE panels communicate exclusively through the Integration Gateway (ADR 0041). Direct execution of agent CLIs is prohibited.
   </div>
 
+  <div id="banner-auto-detect" class="banner-info"></div>
+
   <header>
     <div class="header-title">
       <h1>PersonaOS Workforce Bridge</h1>
@@ -268,11 +306,19 @@
       <span id="reconnect-badge" class="badge" style="display:none; background:rgba(255,255,255,0.1)">0 Reconnects</span>
     </div>
     <div class="controls-bar">
-      <input type="text" id="gateway-url-input" placeholder="Gateway URL (e.g. http://localhost:8000)" style="width: 210px;" />
-      <input type="password" id="auth-token-input" placeholder="Bearer Token" style="width: 110px;" />
-      <button id="btn-reconnect" class="btn-primary">Connect SSE</button>
-      <button id="btn-disconnect">Disconnect</button>
-      <button id="btn-diagnostics">Probe Diag</button>
+      <div class="controls-row">
+        <input type="text" id="gateway-url-input" placeholder="Gateway URL (e.g. http://192.168.1.239:8000)" style="width: 230px; font-family:var(--font-mono);" />
+        <input type="password" id="auth-token-input" placeholder="Bearer Token" style="width: 100px;" />
+        <button id="btn-reconnect" class="btn-primary">Connect SSE</button>
+        <button id="btn-disconnect">Disconnect</button>
+        <button id="btn-diagnostics">Probe Diag</button>
+      </div>
+      <div class="presets-row">
+        <span style="color:var(--text-muted)">Quick Presets:</span>
+        <button type="button" class="btn-preset" data-url="http://192.168.1.239:8000">192.168.1.239:8000 (LAN Recommended)</button>
+        <button type="button" class="btn-preset" data-url="http://127.0.0.1:8000">127.0.0.1:8000 (Local IPv4)</button>
+        <button type="button" class="btn-preset" data-url="http://localhost:8000">localhost:8000</button>
+      </div>
     </div>
   </header>
 
@@ -494,16 +540,39 @@
   </div>
 
   <script>
+    function getInitialGatewayUrl() {
+      try {
+        const saved = localStorage.getItem('personaos_gateway_url');
+        if (saved && saved.trim()) return saved.trim();
+      } catch (e) {}
+
+      // If running inside browser with http/https:
+      if (window.location.origin && window.location.origin.startsWith('http')) {
+        if (window.location.hostname === 'localhost') {
+          return 'http://127.0.0.1:8000';
+        }
+        return window.location.origin;
+      }
+
+      // Default to LAN IP of PersonaOS Host
+      return 'http://192.168.1.239:8000';
+    }
+
     // State management
     const state = {
-      baseUrl: window.location.origin.includes('http') ? window.location.origin : 'http://localhost:8000',
-      token: '',
+      baseUrl: getInitialGatewayUrl(),
+      token: (function() {
+        try { return localStorage.getItem('personaos_auth_token') || ''; } catch (e) { return ''; }
+      })(),
       lastEventId: null,
       reconnectCount: 0,
       connected: false,
+      disconnectedManually: false,
       sseReader: null,
       abortController: null,
     };
+
+    let reconnectTimer = null;
 
     // DOM Elements
     const sseBadge = document.getElementById('sse-status-badge');
@@ -512,8 +581,38 @@
     const tokenInput = document.getElementById('auth-token-input');
     const lastEventIdDisplay = document.getElementById('last-event-id-display');
     const eventsLog = document.getElementById('events-stream-log');
+    const autoDetectBanner = document.getElementById('banner-auto-detect');
 
     urlInput.value = state.baseUrl;
+    tokenInput.value = state.token;
+
+    function savePrefs() {
+      try {
+        localStorage.setItem('personaos_gateway_url', urlInput.value.trim());
+        localStorage.setItem('personaos_auth_token', tokenInput.value.trim());
+      } catch (e) {}
+    }
+
+    urlInput.addEventListener('change', () => {
+      savePrefs();
+      state.baseUrl = urlInput.value.trim();
+    });
+    tokenInput.addEventListener('change', () => {
+      savePrefs();
+      state.token = tokenInput.value.trim();
+    });
+
+    // Preset buttons
+    document.querySelectorAll('.btn-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.url;
+        urlInput.value = url;
+        state.baseUrl = url;
+        savePrefs();
+        state.reconnectCount = 0;
+        startSSE();
+      });
+    });
 
     // Tab Switching
     document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -561,8 +660,52 @@
       }
     }
 
+    function clearReconnectTimer() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    }
+
+    // Auto-probe alternative gateway addresses when current fails
+    async function probeAlternativeGateways() {
+      const candidates = [
+        'http://192.168.1.239:8000',
+        'http://127.0.0.1:8000',
+      ];
+      for (const cand of candidates) {
+        if (cand === state.baseUrl) continue;
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 1500);
+          const r = await fetch(`${cand}/integration/health`, { signal: c.signal });
+          clearTimeout(t);
+          if (r.ok) {
+            autoDetectBanner.style.display = 'block';
+            autoDetectBanner.innerHTML = `
+              <strong>Gateway Auto-Discovery:</strong> Successfully detected PersonaOS at <code>${cand}</code>.
+              <button class="btn btn-primary" style="margin-left:8px; padding:2px 8px; font-size:11px;" onclick="switchGateway('${cand}')">Switch to ${cand}</button>
+            `;
+            return;
+          }
+        } catch (e) {}
+      }
+    }
+
+    window.switchGateway = function(newUrl) {
+      urlInput.value = newUrl;
+      state.baseUrl = newUrl;
+      savePrefs();
+      autoDetectBanner.style.display = 'none';
+      state.reconnectCount = 0;
+      startSSE();
+    };
+
     // SSE Connection with auto-reconnection and Last-Event-ID resumption
     async function startSSE() {
+      clearReconnectTimer();
+      state.disconnectedManually = false;
+
       if (state.abortController) {
         state.abortController.abort();
       }
@@ -571,6 +714,7 @@
       const base = urlInput.value.trim().replace(/\/+$/, '');
       state.baseUrl = base;
       state.token = tokenInput.value.trim();
+      savePrefs();
 
       const queryParts = ['heartbeat_interval=10'];
       if (state.lastEventId) {
@@ -594,6 +738,12 @@
 
         setConnectionStatus('connected');
         state.reconnectCount = 0;
+        autoDetectBanner.style.display = 'none';
+
+        // Auto-refresh tabs on successful connect
+        loadWorkers();
+        loadDag();
+        loadGates();
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -654,14 +804,24 @@
           }
         }
       } catch (err) {
-        if (err.name === 'AbortError') return;
+        if (err.name === 'AbortError' || state.disconnectedManually) return;
         setConnectionStatus('disconnected');
         state.reconnectCount++;
-        setTimeout(startSSE, 3000);
+
+        // Trigger alternative host probing after 2 failures
+        if (state.reconnectCount >= 2) {
+          probeAlternativeGateways();
+        }
+
+        const delay = Math.min(2000 * Math.pow(1.3, Math.min(state.reconnectCount, 8)), 15000);
+        clearReconnectTimer();
+        reconnectTimer = setTimeout(startSSE, delay);
       }
     }
 
     function disconnectSSE() {
+      state.disconnectedManually = true;
+      clearReconnectTimer();
       if (state.abortController) {
         state.abortController.abort();
         state.abortController = null;
@@ -908,7 +1068,7 @@
     // Diagnostics Probe
     async function runDiagnostics() {
       const diagDiv = document.getElementById('diag-results');
-      diagDiv.textContent = 'Probing connection and security boundaries...';
+      diagDiv.textContent = `Probing connection to ${state.baseUrl}...`;
       try {
         const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
         const res = await fetch(`${state.baseUrl}/integration/diagnostics`, { headers });
@@ -923,7 +1083,10 @@
           <div style="margin-top:6px; color:var(--text-muted)">Details: ${JSON.stringify(diag.details)}</div>
         `;
       } catch (err) {
-        diagDiv.innerHTML = `<div style="color:var(--accent-red)">Diagnostic probe failed: ${err.message}</div>`;
+        diagDiv.innerHTML = `
+          <div style="color:var(--accent-red)">Diagnostic probe failed against ${state.baseUrl}: ${err.message}</div>
+          <div style="color:var(--text-muted); margin-top:6px;">Tip: Click "192.168.1.239:8000 (LAN Recommended)" above if connecting across your local network.</div>
+        `;
       }
     }
 
@@ -985,7 +1148,10 @@
     });
 
     // Button event listeners
-    document.getElementById('btn-reconnect').addEventListener('click', () => startSSE());
+    document.getElementById('btn-reconnect').addEventListener('click', () => {
+      state.reconnectCount = 0;
+      startSSE();
+    });
     document.getElementById('btn-disconnect').addEventListener('click', () => disconnectSSE());
     document.getElementById('btn-clear-log').addEventListener('click', () => { eventsLog.innerHTML = ''; });
     document.getElementById('btn-diagnostics').addEventListener('click', () => {
