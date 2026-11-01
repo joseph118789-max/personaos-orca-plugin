@@ -3,1683 +3,716 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PersonaOS Workforce Bridge</title>
+  <title>PersonaOS — Orca ADE Workforce & Orchestration Bridge</title>
   <style>
     :root {
-      --bg-primary: #18181b;
-      --bg-secondary: #27272a;
-      --bg-card: #202023;
-      --border: #3f3f46;
-      --text: #f4f4f5;
-      --text-muted: #a1a1aa;
-      --accent: #6366f1;
-      --accent-hover: #4f46e5;
-      --success: #22c55e;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --info: #38bdf8;
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-green: #4ade80;
+      --accent-yellow: #facc15;
+      --accent-red: #f87171;
+      --border: #475569;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: var(--bg-primary);
-      color: var(--text);
-      padding: 12px;
+      color: var(--text-main);
+      font-family: var(--font-sans);
       font-size: 13px;
       line-height: 1.5;
+      padding: 12px;
     }
+
     header {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      padding-bottom: 10px;
+      gap: 12px;
+      padding-bottom: 12px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
-    .title {
-      font-size: 13px;
-      font-weight: 600;
+
+    .header-title {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+    }
+    .header-title h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      padding: 2px 7px;
+      padding: 2px 8px;
       border-radius: 9999px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      cursor: pointer;
-    }
-    .indicator {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--warning);
-    }
-    .indicator.online { background: var(--success); }
-    .indicator.sandboxed { background: var(--warning); }
-    .indicator.offline { background: var(--danger); }
-
-    .api-config-bar {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
-      padding: 8px;
-      background: var(--bg-secondary);
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      align-items: center;
-    }
-    .api-config-bar input {
-      flex: 1;
-      padding: 4px 8px;
       font-size: 11px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
     }
+    .badge-connected { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .badge-reconnecting { background: rgba(250, 204, 21, 0.2); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+    .badge-disconnected { background: rgba(248, 113, 113, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
 
-    .tabs {
+    .controls-bar {
       display: flex;
-      gap: 4px;
-      margin-bottom: 12px;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 5px 8px;
-      border-radius: 6px;
+    input, select, button {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 5px 10px;
+      border-radius: 4px;
       font-size: 12px;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+    button {
       cursor: pointer;
       font-weight: 500;
-      transition: all 0.2s;
+      transition: background 0.15s ease;
     }
-    .tab-btn.active {
-      background: var(--bg-secondary);
-      color: var(--text);
-    }
-    .tab-content {
-      display: none;
-    }
-    .tab-content.active {
-      display: block;
-    }
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 10px;
-    }
-    .card-header {
+    button:hover { background: var(--bg-card); }
+    button.btn-primary { background: #0284c7; border-color: #38bdf8; }
+    button.btn-primary:hover { background: #0369a1; }
+    button.btn-danger { background: #b91c1c; border-color: #f87171; }
+    button.btn-danger:hover { background: #991b1b; }
+
+    .nav-tabs {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .nav-tab {
+      padding: 6px 12px;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      font-weight: 500;
+    }
+    .nav-tab.active {
+      color: var(--accent-blue);
+      border-bottom-color: var(--accent-blue);
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
     }
     .card-title {
-      font-weight: 600;
       font-size: 13px;
-    }
-    .status-tag {
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      text-transform: uppercase;
       font-weight: 600;
-    }
-    .status-tag.idle, .status-tag.completed { background: rgba(34, 197, 94, 0.15); color: var(--success); }
-    .status-tag.running, .status-tag.in_progress { background: rgba(56, 189, 248, 0.15); color: var(--info); }
-    .status-tag.review { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
-    .status-tag.failed, .status-tag.error { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
-    .status-tag.pending { background: rgba(161, 161, 170, 0.15); color: var(--text-muted); }
-
-    .btn {
-      background: var(--accent);
-      color: #ffffff;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn:hover { background: var(--accent-hover); }
-    .btn-sm { padding: 4px 8px; font-size: 11px; }
-    .btn-secondary {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-    .btn-secondary:hover { background: #323238; }
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: var(--danger);
-    }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.35); }
-    .btn-success {
-      background: rgba(34, 197, 94, 0.2);
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      color: var(--success);
-    }
-    .btn-success:hover { background: rgba(34, 197, 94, 0.35); }
-
-    .form-group {
-      margin-bottom: 10px;
-    }
-    label {
-      display: block;
-      color: var(--text-muted);
-      font-size: 11px;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    input, textarea, select {
-      width: 100%;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 7px 10px;
-      border-radius: 6px;
-      font-size: 12px;
-      outline: none;
-    }
-    input:focus, textarea:focus, select:focus {
-      border-color: var(--accent);
-    }
-    .meta-row {
+      margin-bottom: 8px;
+      color: var(--accent-blue);
       display: flex;
       justify-content: space-between;
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-    .chip-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 6px;
-    }
-    .chip {
-      font-size: 10px;
-      padding: 1px 6px;
-      border-radius: 4px;
-      background: var(--bg-secondary);
-      color: var(--text-muted);
-      border: 1px solid var(--border);
+      align-items: center;
     }
 
-    .code-block {
-      background: #111113;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      color: #38bdf8;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
-      user-select: all;
-      margin: 6px 0;
-    }
-    .notice-box {
-      background: rgba(245, 158, 11, 0.08);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      border-radius: 6px;
-      padding: 10px;
-      margin-bottom: 12px;
-    }
-    .notice-title {
-      font-weight: 600;
-      color: var(--warning);
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
       font-size: 12px;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
     }
+    th, td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    tr:hover { background: rgba(255, 255, 255, 0.02); }
 
-    /* Toast notification */
-    #toast {
-      position: fixed;
-      bottom: 14px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #27272a;
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      z-index: 1000;
-      opacity: 0;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-      pointer-events: none;
+    .dag-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
     }
-    #toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(-2px);
-    }
-
-    /* Modal dialog */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 500;
-      padding: 14px;
-    }
-    .modal-content {
+    .dag-node {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px;
-      width: 100%;
-      max-width: 440px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      border-radius: 4px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
-    .modal-header {
+    .node-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 8px;
-      margin-bottom: 10px;
-    }
-    .modal-title {
       font-weight: 600;
-      font-size: 13px;
+      font-size: 12px;
+    }
+    .node-status-completed { color: var(--accent-green); }
+    .node-status-running { color: var(--accent-blue); }
+    .node-status-review { color: var(--accent-yellow); }
+    .node-status-failed { color: var(--accent-red); }
+
+    .events-log {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      height: 280px;
+      overflow-y: auto;
       display: flex;
-      align-items: center;
-      gap: 6px;
+      flex-direction: column-reverse;
+      gap: 4px;
+    }
+    .event-entry {
+      padding: 4px 6px;
+      border-radius: 3px;
+      border-left: 3px solid var(--border);
+      background: rgba(30, 41, 59, 0.6);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .event-entry.heartbeat { border-left-color: var(--text-muted); color: var(--text-muted); }
+    .event-entry.task_status_changed { border-left-color: var(--accent-blue); }
+    .event-entry.ready_wave_advanced { border-left-color: var(--accent-green); }
+    .event-entry.gate_created { border-left-color: var(--accent-yellow); }
+    .event-entry.gate_resolved { border-left-color: #c084fc; }
+
+    .banner-warning {
+      background: rgba(250, 204, 21, 0.1);
+      border: 1px solid var(--accent-yellow);
+      color: #fef08a;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 12px;
     }
   </style>
 </head>
 <body>
-  <div id="toast">Copied to clipboard</div>
 
-  <!-- Modal: Launch ADE Browser Tab in Orca -->
-  <div id="ade-browser-modal" class="modal-overlay" style="display:none;" onclick="handleModalBackdropClick(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <span class="modal-title">🌐 Launch ADE Browser in Orca</span>
-        <button class="btn btn-sm btn-secondary" onclick="closeAdeModal()">✕</button>
-      </div>
-
-      <div style="font-size:12px;color:var(--text);margin-bottom:10px;">
-        To open the live Workforce Dashboard inside Orca IDE's built-in Browser Tab:
-      </div>
-
-      <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;border:1px solid var(--border);margin-bottom:10px;">
-        <div style="font-weight:600;font-size:11px;color:var(--success);margin-bottom:4px;display:flex;align-items:center;gap:4px;">
-          <span>⚡ Method 1: In Orca Terminal (Instant Tab Creation)</span>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">
-          Run this single command in Orca's integrated terminal (Ctrl+` or Cmd+`):
-        </div>
-        <div class="code-block" id="modal-tab-cmd">orca tab create --url http://192.168.1.239:8000/dashboard</div>
-        <button class="btn btn-sm btn-success" style="width:100%;font-weight:600;margin-top:4px;" onclick="copyOrcaTabCreateCmd()">Copy Terminal Command</button>
-      </div>
-
-      <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;border:1px solid var(--border);margin-bottom:12px;">
-        <div style="font-weight:600;font-size:11px;color:var(--info);margin-bottom:4px;">
-          <span>🔍 Method 2: Orca Palette / Omnibox</span>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">
-          Press <code>Cmd+P</code> (or <code>Ctrl+P</code>) in Orca, paste this URL, and hit Enter:
-        </div>
-        <div class="code-block" id="modal-url">http://192.168.1.239:8000/dashboard</div>
-        <button class="btn btn-sm btn-secondary" style="width:100%;margin-top:4px;" onclick="copyModalUrl()">Copy Dashboard URL</button>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;">
-        <button class="btn btn-sm btn-secondary" onclick="closeAdeModal()">Done</button>
-      </div>
-    </div>
+  <div class="banner-warning">
+    <strong>Zero Direct Agent Invariant:</strong> Orca ADE panels communicate exclusively through the Integration Gateway (ADR 0041). Direct execution of agent CLIs is prohibited.
   </div>
 
   <header>
-    <div class="title">
-      <span>PersonaOS Workforce</span>
-      <span class="badge" id="sse-status-badge" style="display:none;font-size:9px;padding:2px 6px;margin-left:6px;background:var(--success);color:#fff;" title="Real-time Server-Sent Events stream">● LIVE</span>
+    <div class="header-title">
+      <h1>PersonaOS Workforce Bridge</h1>
+      <span id="sse-status-badge" class="badge badge-disconnected">DISCONNECTED</span>
+      <span id="reconnect-badge" class="badge" style="display:none; background:rgba(255,255,255,0.1)">0 Reconnects</span>
     </div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <button class="btn btn-sm btn-success" style="font-size:11px;padding:3px 10px;font-weight:600;" onclick="openAdeModal()" title="Open live ADE Browser in Orca">Open ADE Browser</button>
-      <div class="badge" onclick="switchTab('diagnostics')" title="Click to view connection diagnostics">
-        <span class="indicator" id="api-status"></span>
-        <span id="api-label">Checking...</span>
-      </div>
+    <div class="controls-bar">
+      <input type="text" id="gateway-url-input" placeholder="Gateway URL (e.g. http://localhost:8000)" style="width: 210px;" />
+      <input type="password" id="auth-token-input" placeholder="Bearer Token" style="width: 110px;" />
+      <button id="btn-reconnect" class="btn-primary">Connect SSE</button>
+      <button id="btn-disconnect">Disconnect</button>
+      <button id="btn-diagnostics">Probe Diag</button>
     </div>
   </header>
 
-  <div id="api-bar" class="api-config-bar" style="display:none;">
-    <input type="text" id="api-url-input" placeholder="http://192.168.1.239:8000 or http://localhost:8000" />
-    <button class="btn btn-sm" onclick="saveCustomApiUrl()">Save</button>
-  </div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="tab-events">Live SSE Stream</button>
+    <button class="nav-tab" data-tab="tab-dag">Visual DAG & Waves</button>
+    <button class="nav-tab" data-tab="tab-gates">Decision Gates (<span id="gates-count">0</span>)</button>
+    <button class="nav-tab" data-tab="tab-workers">Workforce Roster</button>
+    <button class="nav-tab" data-tab="tab-diagnostics">Diagnostics</button>
+  </nav>
 
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('workers', event)">Workers</button>
-    <button class="tab-btn" onclick="switchTab('tasks', event)">Tasks</button>
-    <button class="tab-btn" onclick="switchTab('orchestrator', event)">Orchestrator</button>
-    <button class="tab-btn" onclick="switchTab('dispatch', event)">New Task</button>
-    <button class="tab-btn" onclick="switchTab('reviews', event)">Reviews</button>
-    <button class="tab-btn" id="tab-btn-diagnostics" onclick="switchTab('diagnostics', event)">Diagnostics</button>
-  </div>
-
-  <!-- Workers Tab -->
-  <div id="tab-workers" class="tab-content active">
-    <div id="workers-list">Loading workforce roster...</div>
-  </div>
-
-  <!-- Tasks Tab -->
-  <div id="tab-tasks" class="tab-content">
-    <div id="tasks-list">Loading tasks...</div>
-  </div>
-
-  <!-- New Task Tab -->
-  <div id="tab-dispatch" class="tab-content">
+  <!-- Tab 1: Live SSE Event Stream -->
+  <div id="tab-events" class="tab-content active">
     <div class="card">
-      <div class="card-header">
-        <span class="card-title">Dispatch New Task</span>
+      <div class="card-title">
+        <span>Lifecycle Server-Sent Events (ADR 0041 M6)</span>
+        <span style="font-size:11px; font-weight:normal; color:var(--text-muted)">
+          Last Event ID: <span id="last-event-id-display" style="color:var(--accent-blue)">none</span>
+        </span>
       </div>
-      <div class="form-group">
-        <label>Assign Worker</label>
-        <select id="task-worker">
-          <option value="se">Software Engineer (se)</option>
-        </select>
+      <div id="events-stream-log" class="events-log">
+        <div class="event-entry">Waiting for stream connection...</div>
       </div>
-      <div class="form-group">
-        <label>Task Title</label>
-        <input type="text" id="task-title" placeholder="e.g. Implement health check metrics" />
-      </div>
-      <div class="form-group">
-        <label>Objective & Instructions</label>
-        <textarea id="task-objective" rows="4" placeholder="Detail requirements, files, and expected deliverables..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Priority</label>
-        <select id="task-priority">
-          <option value="medium" selected>Medium</option>
-          <option value="high">High</option>
-          <option value="low">Low</option>
-          <option value="critical">Critical</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Dependencies (Optional Task IDs, comma-separated)</label>
-        <input type="text" id="task-deps" placeholder="e.g. task-uuid-1, task-uuid-2" />
-      </div>
-      <div class="form-group">
-        <label>Coordination Run ID (Optional)</label>
-        <input type="text" id="task-run-id" placeholder="e.g. run-uuid or run_legacy_local" />
-      </div>
-      <div style="display:flex;gap:6px;margin-top:10px;">
-        <button class="btn" style="flex:1" onclick="submitTask()">Dispatch Task</button>
-        <button class="btn btn-secondary" style="flex:1" onclick="copyTaskCurlCommand()">Copy as CLI Command</button>
+      <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:11px; color:var(--text-muted)">
+        <span>Auto-reconnection active with exponential backoff & jitter</span>
+        <button id="btn-clear-log" style="padding:2px 6px;">Clear Log</button>
       </div>
     </div>
   </div>
 
-  <!-- Orchestration Tab (ADR 0040) -->
-  <div id="tab-orchestrator" class="tab-content">
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">Orca Orchestration & DAG Bridge</span>
-        <span class="status-tag idle">ADR 0040</span>
+  <!-- Tab 2: Visual DAG & Ready Waves -->
+  <div id="tab-dag" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>Evaluated Task DAG & Ready Waves</span>
+        <div style="display:flex; gap:6px;">
+          <select id="run-select">
+            <option value="default">Run: default</option>
+          </select>
+          <button id="btn-refresh-dag" style="padding:2px 8px;">Refresh</button>
+        </div>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
-        Visual workspace coordination layer for PersonaOS. PersonaOS determines DAG readiness and review authorization; Orca projects the active runs, dependencies, and decision gates.
+      <div id="dag-summary" style="margin-bottom:8px; font-size:12px; color:var(--text-muted)">
+        Total: 0 | Completed: 0 | Ready: 0 | Current Wave: 1
       </div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-sm btn-secondary" onclick="loadOrchestrationData()">Refresh DAG</button>
-        <button class="btn btn-sm btn-secondary" onclick="copyOrcaRunCreateCommand()">Copy `run-create` CLI</button>
+      <div id="dag-nodes-container" class="dag-grid">
+        <div style="color:var(--text-muted)">No tasks loaded for this run.</div>
       </div>
     </div>
-
-    <div style="font-weight:600;font-size:12px;margin:12px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center;">
-      <span>Task DAG Projection</span>
-      <span id="dag-summary-stats" style="font-size:10px;font-weight:normal;color:var(--text-muted);"></span>
-    </div>
-    <div id="orchestrator-dag-list">Loading DAG projection...</div>
-
-    <div style="font-weight:600;font-size:12px;margin:16px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
-      Ready Execution Waves
-    </div>
-    <div id="orchestrator-waves-list">Loading ready waves...</div>
-
-    <div style="font-weight:600;font-size:12px;margin:16px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
-      Interactive Decision Gates (HITL)
-    </div>
-    <div id="orchestrator-gates-list">Loading decision gates...</div>
   </div>
 
-  <!-- Reviews Tab -->
-  <div id="tab-reviews" class="tab-content">
-    <div id="reviews-list">Loading review queue...</div>
+  <!-- Tab 3: Decision Gates -->
+  <div id="tab-gates" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>Interactive Decision Gates (Human-in-the-Loop Review Queue)</span>
+        <button id="btn-refresh-gates" style="padding:2px 8px;">Refresh</button>
+      </div>
+      <div id="gates-container">
+        <div style="color:var(--text-muted)">No decision gates currently awaiting review.</div>
+      </div>
+    </div>
   </div>
 
-  <!-- Diagnostics Tab (ADR 0041 M2) -->
+  <!-- Tab 4: Workforce Roster -->
+  <div id="tab-workers" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>Registered Persistent AI Workers</span>
+        <button id="btn-refresh-workers" style="padding:2px 8px;">Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Worker ID</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Profile Ver</th>
+            <th>Capabilities</th>
+          </tr>
+        </thead>
+        <tbody id="workers-table-body">
+          <tr><td colspan="6" style="color:var(--text-muted)">Loading workers...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 5: Diagnostics -->
   <div id="tab-diagnostics" class="tab-content">
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🔍 Gateway Connection Diagnostics</span>
-        <span class="status-tag idle" id="diag-status-tag">INITIALIZING</span>
+    <div class="card">
+      <div class="card-title">
+        <span>Connection & Security Boundary Diagnostics</span>
+        <button id="btn-run-full-diag" class="btn-primary" style="padding:2px 8px;">Execute Probe</button>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
-        Real-time telemetry probing upstream PersonaOS connectivity, CORS, Private Network Access (PNA), latency, and authentication status.
-      </div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-sm btn-primary" onclick="runDiagnostics(true)">Run Diagnostics Probe</button>
-        <button class="btn btn-sm btn-secondary" onclick="toggleApiBar()">Configure Endpoint</button>
-      </div>
-    </div>
-
-    <!-- Diagnostic Details Report -->
-    <div id="diagnostic-report">
-      <div class="card" style="color:var(--text-muted);text-align:center;padding:16px;">
-        Running diagnostic probe against PersonaOS Gateway...
-      </div>
-    </div>
-
-    <!-- Remediation Guidance (Visible on error/warning) -->
-    <div id="diagnostic-remediation" style="display:none;margin-top:12px;"></div>
-
-    <!-- Endpoint Quick Switcher -->
-    <div class="card" style="margin-top:12px;">
-      <div class="card-header">
-        <span class="card-title">Candidate Endpoints</span>
-      </div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
-        Click to switch active endpoint and re-probe connectivity:
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://127.0.0.1:8000')">http://127.0.0.1:8000 (Loopback IP - Recommended)</button>
-        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://localhost:8000')">http://localhost:8000 (Localhost)</button>
-        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://localhost:8001')">http://localhost:8001 (Gateway BFF Proxy)</button>
-        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://192.168.1.239:8000')">http://192.168.1.239:8000 (Host VM Private LAN)</button>
+      <div id="diag-results" style="font-family:var(--font-mono); font-size:12px;">
+        Click 'Execute Probe' to inspect CORS, PNA, Auth, Latency, and API version match.
       </div>
     </div>
   </div>
 
   <script>
-    // In-memory fallback if sandboxed iframe blocks localStorage
-    var memoryStore = {};
-    function safeStorageGet(key) {
-      try {
-        if (window.localStorage) {
-          return window.localStorage.getItem(key);
-        }
-      } catch (e) {}
-      return memoryStore[key] || null;
-    }
-    function safeStorageSet(key, val) {
-      try {
-        if (window.localStorage) {
-          window.localStorage.setItem(key, val);
-          return;
-        }
-      } catch (e) {}
-      memoryStore[key] = val;
-    }
+    // State management
+    const state = {
+      baseUrl: window.location.origin.includes('http') ? window.location.origin : 'http://localhost:8000',
+      token: '',
+      lastEventId: null,
+      reconnectCount: 0,
+      connected: false,
+      sseReader: null,
+      abortController: null,
+      retryDelayMs: 2000,
+      backoffMultiplier: 1.5,
+      maxRetryDelayMs: 30000,
+    };
 
-    // Detect Content-Security-Policy injected by Orca Electron container
-    function detectCspPolicy() {
-      var meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-      if (meta && meta.content) {
-        var m = meta.content.match(/connect-src\s+([^;]+)/i);
-        if (m && m[1]) return m[1].trim();
-      }
-      return null;
-    }
+    // DOM Elements
+    const sseBadge = document.getElementById('sse-status-badge');
+    const reconnectBadge = document.getElementById('reconnect-badge');
+    const urlInput = document.getElementById('gateway-url-input');
+    const tokenInput = document.getElementById('auth-token-input');
+    const lastEventIdDisplay = document.getElementById('last-event-id-display');
+    const eventsLog = document.getElementById('events-stream-log');
 
-    var cspPolicy = detectCspPolicy();
-    var isCspRestricted = (cspPolicy === "'none'");
+    urlInput.value = state.baseUrl;
 
-    var savedUrl = safeStorageGet('personaos_api_url');
-    var activeApiBase = savedUrl || 'http://192.168.1.239:8000';
+    // Tab Switching
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.getElementById(target).classList.add('active');
 
-    var inputEl = document.getElementById('api-url-input');
-    if (inputEl) inputEl.value = activeApiBase;
-
-    function showToast(msg) {
-      var t = document.getElementById('toast');
-      if (!t) return;
-      t.textContent = msg;
-      t.className = 'show';
-      setTimeout(function() { t.className = ''; }, 2600);
-    }
-
-    function copyToClipboard(text, successMsg) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function() {
-          showToast(successMsg || 'Copied to clipboard!');
-        }).catch(function() {
-          prompt('Copy to clipboard:', text);
-        });
-      } else {
-        prompt('Copy to clipboard:', text);
-      }
-    }
-
-    function openAdeModal() {
-      var m = document.getElementById('ade-browser-modal');
-      if (m) m.style.display = 'flex';
-      var cmdEl = document.getElementById('modal-tab-cmd');
-      if (cmdEl) cmdEl.textContent = 'orca tab create --url ' + activeApiBase + '/dashboard';
-      var urlEl = document.getElementById('modal-url');
-      if (urlEl) urlEl.textContent = activeApiBase + '/dashboard';
-    }
-
-    function closeAdeModal() {
-      var m = document.getElementById('ade-browser-modal');
-      if (m) m.style.display = 'none';
-    }
-
-    function handleModalBackdropClick(ev) {
-      if (ev.target && ev.target.id === 'ade-browser-modal') {
-        closeAdeModal();
-      }
-    }
-
-    function copyOrcaTabCreateCmd() {
-      var cmd = 'orca tab create --url ' + activeApiBase + '/dashboard';
-      copyToClipboard(cmd, 'Terminal command copied! Paste into Orca terminal and press Enter.');
-    }
-
-    function copyModalUrl() {
-      var url = activeApiBase + '/dashboard';
-      copyToClipboard(url, 'Dashboard URL copied! Paste into Orca Cmd+P.');
-    }
-
-    function copyDashboardUrl() {
-      openAdeModal();
-    }
-
-    function copyDispatchCommand() {
-      var cmd = 'curl -s -X POST ' + activeApiBase + '/tasks \\\n  -H "Content-Type: application/json" \\\n  -d \'{"title":"Feature development","assigned_worker":"se","objective":"Implement required features","priority":"medium"}\' | jq';
-      copyToClipboard(cmd, 'Sample dispatch command copied!');
-    }
-
-    function copyUnlockCommand() {
-      var cmd = "python3 -c \"p='/Applications/Orca.app/Contents/Resources/app.asar'; open(p,'wb').write(open(p,'rb').read().replace(b\\\"connect-src 'none'\\\", b\\\"connect-src *;     \\\"))\"";
-      copyToClipboard(cmd, 'macOS unlock command copied!');
-    }
-
-    function copyTaskCurlCommand() {
-      var workerId = document.getElementById('task-worker').value || 'se';
-      var title = (document.getElementById('task-title').value || '').trim() || 'Custom Task';
-      var objective = (document.getElementById('task-objective').value || '').trim() || 'Task objective details';
-      var priority = document.getElementById('task-priority').value || 'medium';
-
-      var payload = JSON.stringify({
-        worker_id: workerId,
-        title: title,
-        objective: objective,
-        priority: priority
+        if (target === 'tab-workers') loadWorkers();
+        if (target === 'tab-dag') loadDag();
+        if (target === 'tab-gates') loadGates();
       });
-
-      var curlCmd = 'curl -s -X POST ' + activeApiBase + '/tasks \\\n  -H "Content-Type: application/json" \\\n  -d \'' + payload + '\' | jq';
-      copyToClipboard(curlCmd, 'Task CLI command copied!');
-    }
-
-    function probeUrl(baseUrl, timeoutMs) {
-      timeoutMs = timeoutMs || 1500;
-      return new Promise(function(resolve) {
-        if (!baseUrl) return resolve(false);
-        var controller;
-        var timer;
-        try {
-          controller = new AbortController();
-          timer = setTimeout(function() {
-            try { controller.abort(); } catch (e) {}
-            resolve(false);
-          }, timeoutMs);
-        } catch (e) {}
-        var fetchOpts = { method: 'GET', mode: 'cors' };
-        if (controller) fetchOpts.signal = controller.signal;
-        var cleanUrl = baseUrl.replace(/\/+$/, '');
-        if (/localhost|127\.0\.0\.1/.test(cleanUrl)) {
-          fetchOpts.targetAddressSpace = 'loopback';
-        } else if (/192\.168\./.test(cleanUrl)) {
-          fetchOpts.targetAddressSpace = 'local';
-        }
-
-        fetch(cleanUrl + '/health', fetchOpts)
-          .then(function(res) {
-            if (timer) clearTimeout(timer);
-            resolve(res.ok);
-          })
-          .catch(function() {
-            if (timer) clearTimeout(timer);
-            resolve(false);
-          });
-      });
-    }
-
-    function getCandidateEndpoints() {
-      var list = [];
-      var saved = safeStorageGet('personaos_api_url');
-      if (saved) list.push(saved);
-
-      list.push('http://192.168.1.239:8000');
-      list.push('http://localhost:8000');
-      list.push('http://127.0.0.1:8000');
-
-      var seen = {};
-      var result = [];
-      for (var i = 0; i < list.length; i++) {
-        var item = list[i] ? list[i].replace(/\/+$/, '') : '';
-        if (item && !seen[item]) {
-          seen[item] = true;
-          result.push(item);
-        }
-      }
-      return result;
-    }
-
-    async function autoDetectActiveEndpoint() {
-      var endpoints = getCandidateEndpoints();
-      if (activeApiBase && await probeUrl(activeApiBase, 1200)) {
-        return activeApiBase;
-      }
-      for (var i = 0; i < endpoints.length; i++) {
-        var ep = endpoints[i];
-        if (ep === activeApiBase) continue;
-        if (await probeUrl(ep, 1200)) {
-          activeApiBase = ep;
-          safeStorageSet('personaos_api_url', ep);
-          var input = document.getElementById('api-url-input');
-          if (input) input.value = ep;
-          return ep;
-        }
-      }
-      return activeApiBase;
-    }
-
-    function runAutoDetect() {
-      var label = document.getElementById('api-label');
-      if (label) label.textContent = 'Probing...';
-      autoDetectActiveEndpoint().then(function() {
-        checkHealth();
-        loadWorkers();
-        loadTasks();
-      });
-    }
-
-    function toggleApiBar() {
-      var bar = document.getElementById('api-bar');
-      if (bar) {
-        bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
-      }
-    }
-
-    function saveCustomApiUrl() {
-      var input = document.getElementById('api-url-input');
-      if (!input) return;
-      var val = input.value.trim();
-      if (!val) return;
-      if (!val.startsWith('http')) val = 'http://' + val;
-      val = val.replace(/\/+$/, '');
-      activeApiBase = val;
-      safeStorageSet('personaos_api_url', val);
-      var bar = document.getElementById('api-bar');
-      if (bar) bar.style.display = 'none';
-      checkHealth().then(function() {
-        loadWorkers();
-        loadTasks();
-        initSseStream();
-      });
-    }
-
-    function switchCandidate(url) {
-      var input = document.getElementById('api-url-input');
-      if (input) input.value = url;
-      saveCustomApiUrl();
-    }
-
-    async function apiFetch(path, options) {
-      options = options || {};
-
-      function doFetch(base, prefix) {
-        var target = base + (prefix || '') + path;
-        return new Promise(function(resolve, reject) {
-          var controller;
-          var timer;
-          try {
-            controller = new AbortController();
-            timer = setTimeout(function() {
-              try { controller.abort(); } catch (e) {}
-              reject(new Error('timeout'));
-            }, 3000);
-          } catch (e) {}
-          var opts = Object.assign({ mode: 'cors' }, options);
-          if (controller) opts.signal = controller.signal;
-          if (/localhost|127\.0\.0\.1/.test(target)) {
-            opts.targetAddressSpace = 'loopback';
-          } else if (/192\.168\./.test(target)) {
-            opts.targetAddressSpace = 'local';
-          }
-          fetch(target, opts)
-            .then(function(r) {
-              if (timer) clearTimeout(timer);
-              resolve(r);
-            })
-            .catch(function(err) {
-              if (timer) clearTimeout(timer);
-              reject(err);
-            });
-        });
-      }
-
-      // 1. Try active URL directly
-      try {
-        var res = await doFetch(activeApiBase, '');
-        if (res.ok || res.status !== 404) return res;
-      } catch (e) {}
-
-      // 2. Try with /api prefix
-      try {
-        var res2 = await doFetch(activeApiBase, '/api');
-        if (res2.ok || res2.status !== 404) return res2;
-      } catch (e) {}
-
-      // 3. Fallback: probe candidates if active is unreachable
-      var endpoints = getCandidateEndpoints();
-      for (var i = 0; i < endpoints.length; i++) {
-        var c = endpoints[i];
-        if (c === activeApiBase) continue;
-        try {
-          var res3 = await doFetch(c, '');
-          if (res3.ok) {
-            activeApiBase = c;
-            safeStorageSet('personaos_api_url', c);
-            var input = document.getElementById('api-url-input');
-            if (input) input.value = c;
-            checkHealth();
-            return res3;
-          }
-        } catch (e) {}
-      }
-
-      throw new Error(`Failed to fetch from ${activeApiBase}`);
-    }
-
-    function switchTab(name, ev) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      if (ev && ev.target) {
-        ev.target.classList.add('active');
-      } else {
-        var btn = document.getElementById('tab-btn-' + name);
-        if (btn) btn.classList.add('active');
-      }
-      var el = document.getElementById('tab-' + name);
-      if (el) el.classList.add('active');
-      if (name === 'workers') loadWorkers();
-      if (name === 'tasks') loadTasks();
-      if (name === 'orchestrator') loadOrchestrationData();
-      if (name === 'reviews') loadReviews();
-      if (name === 'diagnostics') runDiagnostics(false);
-    }
-
-    var lastDiagnosticResult = null;
-
-    async function runDiagnostics(showToastMsg) {
-      var reportEl = document.getElementById('diagnostic-report');
-      var remEl = document.getElementById('diagnostic-remediation');
-      var tagEl = document.getElementById('diag-status-tag');
-      if (tagEl) {
-        tagEl.textContent = 'PROBING...';
-        tagEl.className = 'status-tag pending';
-      }
-
-      var startTime = Date.now();
-      var diagData = null;
-
-      try {
-        var cleanUrl = activeApiBase.replace(/\/+$/, '');
-        var res = await apiFetch('/integration/diagnostics?target_url=' + encodeURIComponent(cleanUrl));
-        if (res.ok) {
-          diagData = await res.json();
-        } else {
-          var healthRes = await apiFetch('/health');
-          var healthOk = healthRes.ok;
-          diagData = {
-            code: healthOk ? 'CONNECTED' : 'SERVICE_UNAVAILABLE',
-            status: healthOk ? 'ok' : 'error',
-            latency_ms: Date.now() - startTime,
-            upstream_url: cleanUrl,
-            cors_supported: true,
-            pna_supported: true,
-            auth_status: 'authenticated',
-            api_version_match: true,
-            remediation: healthOk ? null : 'PersonaOS control plane returned HTTP ' + healthRes.status,
-            details: { fallback: true }
-          };
-        }
-      } catch (err) {
-        var isSecureOrigin = (window.location && (window.location.protocol === 'https:' || window.location.protocol === 'orca-app:'));
-        var isInsecurePrivate = /192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./.test(activeApiBase);
-        var latency = Date.now() - startTime;
-
-        if (isCspRestricted) {
-          diagData = {
-            code: 'CORS_BLOCKED',
-            status: 'error',
-            latency_ms: latency,
-            upstream_url: activeApiBase,
-            cors_supported: false,
-            pna_supported: false,
-            auth_status: 'unknown',
-            api_version_match: false,
-            remediation: 'Orca Electron container enforced connect-src none. Outbound network requests are rejected by desktop client sandboxing.',
-            details: { error: err.message, csp: 'connect-src none' }
-          };
-        } else if (isSecureOrigin && isInsecurePrivate) {
-          diagData = {
-            code: 'CORS_BLOCKED',
-            status: 'error',
-            latency_ms: latency,
-            upstream_url: activeApiBase,
-            cors_supported: false,
-            pna_supported: false,
-            auth_status: 'unknown',
-            api_version_match: false,
-            remediation: 'Insecure HTTP private address (' + activeApiBase + ') accessed from secure ADE origin (' + (window.location.origin || 'orca-app') + '). Blocked by Mixed Content & Chromium Private Network Access (PNA).',
-            details: { error: err.message, mixed_content: true, pna_blocked: true }
-          };
-        } else {
-          diagData = {
-            code: 'NETWORK_UNREACHABLE',
-            status: 'error',
-            latency_ms: latency,
-            upstream_url: activeApiBase,
-            cors_supported: false,
-            pna_supported: false,
-            auth_status: 'unknown',
-            api_version_match: false,
-            remediation: 'Unable to connect to ' + activeApiBase + '. Verify that the PersonaOS server is running and accessible on this network.',
-            details: { error: err.message }
-          };
-        }
-      }
-
-      lastDiagnosticResult = diagData;
-
-      if (tagEl) {
-        if (diagData.code === 'CONNECTED') {
-          tagEl.textContent = 'CONNECTED';
-          tagEl.className = 'status-tag completed';
-        } else if (diagData.status === 'degraded') {
-          tagEl.textContent = diagData.code;
-          tagEl.className = 'status-tag idle';
-        } else {
-          tagEl.textContent = diagData.code;
-          tagEl.className = 'status-tag failed';
-        }
-      }
-
-      var indicator = document.getElementById('api-status');
-      var label = document.getElementById('api-label');
-      if (indicator && label) {
-        if (diagData.code === 'CONNECTED') {
-          indicator.className = 'indicator online';
-          label.textContent = 'Connected (' + diagData.latency_ms + 'ms)';
-        } else {
-          indicator.className = isCspRestricted ? 'indicator sandboxed' : 'indicator offline';
-          label.textContent = diagData.code;
-        }
-      }
-
-      if (reportEl) {
-        var statusColor = diagData.code === 'CONNECTED' ? 'var(--success)' : (diagData.status === 'degraded' ? 'var(--warning)' : 'var(--danger)');
-        reportEl.innerHTML = `
-          <div class="card" style="border-left: 3px solid ${statusColor};">
-            <div class="card-header">
-              <span class="card-title">Diagnostic Probe Result</span>
-              <span class="badge" style="background:${statusColor};color:#fff;font-weight:600;">${diagData.code}</span>
-            </div>
-            <div class="meta-row" style="margin: 8px 0;">
-              <span>Target: <code>${diagData.upstream_url}</code></span>
-              <span>Roundtrip: <b>${diagData.latency_ms} ms</b></span>
-              <span>Status: <b>${diagData.status}</b></span>
-            </div>
-            <div class="meta-row" style="margin-bottom: 8px;">
-              <span>CORS: <b>${diagData.cors_supported ? 'Supported' : 'Blocked'}</b></span>
-              <span>PNA: <b>${diagData.pna_supported ? 'Available' : 'Restricted'}</b></span>
-              <span>Auth: <b>${diagData.auth_status}</b></span>
-            </div>
-            <div style="font-size:11px;color:var(--text-muted);border-top:1px dashed var(--border);padding-top:6px;">
-              Engine: <code>${(diagData.details && diagData.details.engine) || 'personaos-gateway'}</code> · Protocol: <code>${(diagData.details && diagData.details.protocol) || 'http/1.1'}</code>
-            </div>
-          </div>
-        `;
-      }
-
-      if (remEl) {
-        if (diagData.remediation) {
-          remEl.style.display = 'block';
-          remEl.innerHTML = `
-            <div class="card" style="border-left: 3px solid var(--warning);background:rgba(217,119,6,0.06);">
-              <div class="card-header">
-                <span class="card-title" style="color:var(--warning);">⚠️ Actionable Remediation (ADR 0041)</span>
-              </div>
-              <div style="font-size:12px;margin:6px 0;line-height:1.4;">
-                ${diagData.remediation}
-              </div>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
-                <b>Recommendation:</b> In Orca ADE, switch endpoint below to <code>http://127.0.0.1:8000</code> or run the local Gateway BFF proxy.
-              </div>
-            </div>
-          `;
-        } else {
-          remEl.style.display = 'none';
-        }
-      }
-
-      if (showToastMsg) {
-        showToast('Diagnostic probe completed: ' + diagData.code);
-      }
-      return diagData;
-    }
-
-    async function checkHealth() {
-      try {
-        var diag = await runDiagnostics(false);
-        return diag.code === 'CONNECTED';
-      } catch (e) {
-        return false;
-      }
-    }
-
-    function renderSandboxedBridgeHtml(container, contextNotice) {
-      container.innerHTML = `
-        <div class="notice-box">
-          <div class="notice-title">
-            <span>🛡️ Orca Client Sandbox Environment</span>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);line-height:1.4;">
-            Your local Orca IDE desktop client enforces <code>Content-Security-Policy: connect-src 'none'</code> inside sidebar plugin iframes.
-            Direct browser <code>fetch()</code> requests from this sidebar are restricted by Chromium.
-          </div>
-        </div>
-
-        <div class="card" style="border-color:var(--success);">
-          <div class="card-header">
-            <span class="card-title">1. Launch ADE Browser in Orca</span>
-            <span class="status-tag idle">Running</span>
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
-            The PersonaOS Control Plane and ADE Dashboard are fully operational on <code>${activeApiBase}</code>.
-            Click below to open in Orca's internal Browser Tab or your desktop browser:
-          </div>
-          <button class="btn btn-sm btn-success" style="width:100%;font-weight:600;padding:6px 12px;" onclick="openAdeModal()">
-            🌐 Launch ADE Browser Tab
-          </button>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">2. Terminal CLI Delegation</span>
-            <span class="status-tag in_progress">Active</span>
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
-            Worker <code>se</code> (Software Engineer) is running. Dispatch tasks directly from Orca's built-in terminal:
-          </div>
-          <div class="code-block">curl -s -X POST ${activeApiBase}/tasks \\
-  -H "Content-Type: application/json" \\
-  -d '{"title":"Feature work","assigned_worker":"se","objective":"Implement feature","priority":"medium"}' | jq</div>
-          <button class="btn btn-sm btn-secondary" style="width:100%;margin-top:4px;" onclick="copyDispatchCommand()">Copy Dispatch Command</button>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">3. Unlock Sidebar Panel (Optional)</span>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">
-            To lift the client CSP sandbox and allow this sidebar panel to fetch directly, run this 1-line command on your Mac/Linux host and restart Orca:
-          </div>
-          <div class="code-block">python3 -c "p='/Applications/Orca.app/Contents/Resources/app.asar'; open(p,'wb').write(open(p,'rb').read().replace(b\\"connect-src 'none'\\", b\\"connect-src *;     \\"))"</div>
-          <div style="display:flex;gap:6px;margin-top:6px;">
-            <button class="btn btn-sm btn-secondary" style="flex:1" onclick="copyUnlockCommand()">Copy Unlock Command</button>
-            <button class="btn btn-sm btn-secondary" onclick="toggleApiBar()">Change API Host</button>
-          </div>
-        </div>
-      `;
-    }
-
-    async function loadWorkers() {
-      const container = document.getElementById('workers-list');
-      const select = document.getElementById('task-worker');
-      try {
-        let res;
-        try {
-          res = await apiFetch('/integration/workers');
-        } catch (_) {
-          res = await apiFetch('/workers');
-        }
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        const workers = Array.isArray(data) ? data : (data.workers || []);
-
-        if (workers.length === 0) {
-          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No active workers registered.</div>';
-          return;
-        }
-
-        if (select) {
-          select.innerHTML = workers.map(w =>
-            `<option value="${w.id}">${w.name || w.id} (${w.role || 'Worker'})</option>`
-          ).join('');
-        }
-
-        container.innerHTML = workers.map(w => `
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">${w.name || w.id}</span>
-              <span class="status-tag ${w.status || 'idle'}">${w.status || 'idle'}</span>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${w.description || w.role || 'Autonomous Worker'}</div>
-            <div class="chip-container">
-              ${(w.capabilities || []).map(c => `<span class="chip">${c}</span>`).join('')}
-            </div>
-            <div class="meta-row">
-              <span>Profile v${w.current_profile_version || 1}</span>
-              <span>Runtime: ${w.runtime || 'standard'}</span>
-            </div>
-          </div>
-        `).join('');
-      } catch (e) {
-        renderSandboxedBridgeHtml(container, e.message);
-      }
-    }
-
-    async function loadTasks() {
-      const container = document.getElementById('tasks-list');
-      try {
-        const res = await apiFetch('/tasks');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        const tasks = Array.isArray(data) ? data : (data.tasks || []);
-        if (tasks.length === 0) {
-          container.innerHTML = '<div class="card" style="color:var(--text-muted)">No tasks recorded.</div>';
-          return;
-        }
-        container.innerHTML = tasks.map(t => `
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">${t.title || t.id.slice(0, 8)}</span>
-              <span class="status-tag ${t.status}">${t.status}</span>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${t.objective || ''}</div>
-            <div class="meta-row">
-              <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
-              <span>Priority: ${t.priority || 'medium'}</span>
-              <span>Gen: ${t.execution_generation || 1}</span>
-            </div>
-          </div>
-        `).join('');
-      } catch (e) {
-        container.innerHTML = `
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Tasks Monitor</span>
-              <button class="btn btn-sm btn-secondary" onclick="copyDashboardUrl()">Open ADE Dashboard</button>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
-              View all task queues, execution timelines, and logs in the interactive ADE dashboard or query via terminal:
-            </div>
-            <div class="code-block">curl -s ${activeApiBase}/tasks | jq .</div>
-            <button class="btn btn-sm btn-secondary" style="width:100%" onclick="copyToClipboard('curl -s ${activeApiBase}/tasks | jq .', 'Tasks query command copied!')">Copy Query Command</button>
-          </div>
-        `;
-      }
-    }
-
-    async function loadReviews() {
-      const container = document.getElementById('reviews-list');
-      try {
-        let gates = [];
-        try {
-          const gRes = await apiFetch('/integration/decision-gates');
-          if (gRes.ok) {
-            gates = await gRes.json();
-          }
-        } catch (_) {}
-
-        if (!gates || gates.length === 0) {
-          // Fallback to legacy /tasks/review
-          try {
-            const res = await apiFetch('/tasks/review');
-            if (res.ok) {
-              const legacyTasks = await res.json();
-              gates = (Array.isArray(legacyTasks) ? legacyTasks : []).map(t => ({
-                gate_id: 'gate-' + t.id,
-                task_id: t.id,
-                title: t.title || t.id.slice(0, 8),
-                question: t.objective || 'Task requires human operator review.',
-                options: ['approve', 'reject'],
-                status: 'pending',
-                execution_generation: t.execution_generation || t.generation || 1,
-                review_context: { assigned_worker: t.assigned_worker || t.worker_id }
-              }));
-            }
-          } catch (_) {}
-        }
-
-        if (!gates || gates.length === 0) {
-          container.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:20px;">No decision gates or tasks currently pending review.</div>';
-          return;
-        }
-
-        container.innerHTML = gates.map(g => {
-          const gen = g.execution_generation || 1;
-          const ctx = g.review_context || {};
-          const worker = ctx.assigned_worker || 'unassigned';
-          const findings = ctx.last_error || ctx.findings || '';
-          return `
-            <div class="card" style="border-left: 3px solid var(--warning);">
-              <div class="card-header">
-                <span class="card-title">${g.title || g.gate_id}</span>
-                <span class="status-tag review">Requires Decision</span>
-              </div>
-              <div style="font-size:12px;color:var(--text);margin-bottom:6px">${g.question || 'Human review required before proceeding.'}</div>
-              ${findings ? `<div style="font-size:11px;color:var(--danger);background:rgba(239,68,68,0.1);padding:6px 8px;border-radius:4px;margin-bottom:8px;">${findings}</div>` : ''}
-              <div class="meta-row" style="margin-bottom:10px">
-                <span>Worker: ${worker}</span>
-                <span>Gate ID: <code>${g.gate_id}</code></span>
-                <span>Gen Fence: <b>${gen}</b></span>
-              </div>
-              <div style="display:flex;gap:6px">
-                <button class="btn btn-success" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'approve', ${gen})">Approve & Continue</button>
-                <button class="btn btn-danger" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'reject', ${gen})">Reject & Abort</button>
-              </div>
-            </div>
-          `;
-        }).join('');
-      } catch (e) {
-        container.innerHTML = `
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Review Queue</span>
-              <button class="btn btn-sm btn-secondary" onclick="copyDashboardUrl()">Open ADE Dashboard</button>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
-              Tasks waiting for human sign-off are available in the ADE Dashboard:
-            </div>
-            <div class="code-block">${activeApiBase}/dashboard</div>
-            <button class="btn btn-sm btn-secondary" style="width:100%" onclick="copyDashboardUrl()">Copy Review Dashboard URL</button>
-          </div>
-        `;
-      }
-    }
-
-    async function resolveDecisionGate(gateId, decision, gen) {
-      const defaultNote = (decision === 'approve')
-        ? 'Deliverables reviewed and approved for resolution.'
-        : 'Deliverables did not meet specification.';
-      const promptMsg = (decision === 'approve')
-        ? 'Approval justification (at least 10 chars):'
-        : 'Rejection reason (at least 10 chars):';
-      const reason = prompt(promptMsg, defaultNote);
-      if (!reason || reason.trim().length < 10) {
-        alert('Reason must be at least 10 characters.');
-        return;
-      }
-
-      const taskId = gateId.startsWith('gate-') ? gateId.slice(5) : gateId;
-
-      try {
-        const payload = {
-          decision: decision,
-          expected_generation: gen,
-          review_notes: reason.trim(),
-          selected_option: decision
-        };
-
-        const res = await apiFetch(`/integration/decision-gates/${encodeURIComponent(gateId)}/resolve`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.status === 409) {
-          const errData = await res.json().catch(() => ({}));
-          const errMsg = errData.detail || 'STALE_GENERATION_CONFLICT';
-          alert(`⚠️ Stale Decision Gate Conflict:\n\n${errMsg}\n\nThe task was modified or restarted by another process. Refreshing decision gates...`);
-          loadOrchestrationData();
-          loadReviews();
-          loadTasks();
-          return;
-        }
-
-        if (!res.ok) {
-          // If gateway endpoint unavailable, fallback to /tasks/{taskId}/{decision}
-          const fallbackRes = await apiFetch(`/tasks/${taskId}/${decision}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reason: reason.trim(),
-              expected_generation: gen,
-              reset_retries: true
-            })
-          });
-          if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
-        }
-
-        showToast(`Gate ${gateId} ${decision === 'approve' ? 'approved' : 'rejected'} successfully!`);
-        loadOrchestrationData();
-        loadReviews();
-        loadTasks();
-      } catch (e) {
-        alert(`Failed to resolve gate: ${e.message}`);
-        var curlCmd = `curl -s -X POST ${activeApiBase}/integration/decision-gates/${gateId}/resolve -H "Content-Type: application/json" -d '{"decision":"${decision}","expected_generation":${gen},"review_notes":"${reason.trim()}"}' | jq`;
-        copyToClipboard(curlCmd, 'Gate resolution CLI command copied to clipboard!');
-      }
-    }
-
-    async function approveTask(taskId, gen) {
-      return resolveDecisionGate(`gate-${taskId}`, 'approve', gen);
-    }
-
-    async function rejectTask(taskId, gen) {
-      return resolveDecisionGate(`gate-${taskId}`, 'reject', gen);
-    }
-
-    function copyOrcaRunCreateCommand() {
-      var cmd = `orca orchestration run-create --objective "Multi-worker feature coordination" --json`;
-      copyToClipboard(cmd, 'Orca run-create command copied!');
-    }
-
-    async function loadOrchestrationData() {
-      var dagContainer = document.getElementById('orchestrator-dag-list');
-      var wavesContainer = document.getElementById('orchestrator-waves-list');
-      var gatesContainer = document.getElementById('orchestrator-gates-list');
-      var statsSpan = document.getElementById('dag-summary-stats');
-      if (!dagContainer || !gatesContainer) return;
-
-      try {
-        // 1. Fetch evaluated DAG projection from Gateway
-        let dagData;
-        try {
-          var dagRes = await apiFetch('/integration/runs/default/dag');
-          if (dagRes.ok) {
-            dagData = await dagRes.json();
-          }
-        } catch (_) {}
-
-        // 2. Fetch ready waves from Gateway
-        let wavesData;
-        try {
-          var wavesRes = await apiFetch('/integration/runs/default/ready-waves');
-          if (wavesRes.ok) {
-            wavesData = await wavesRes.json();
-          }
-        } catch (_) {}
-
-        // Fallback: if Gateway DAG projection not available, fallback to /tasks
-        var tasks = [];
-        if (!dagData || !dagData.nodes) {
-          var res = await apiFetch('/tasks');
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          var rawData = await res.json();
-          tasks = Array.isArray(rawData) ? rawData : (rawData.tasks || []);
-          dagData = {
-            run_id: 'default',
-            nodes: tasks.map(function(t) {
-              return {
-                task_id: t.id,
-                title: t.title || t.id.slice(0, 8),
-                worker_id: t.assigned_worker || t.worker_id,
-                status: t.status,
-                dependencies: t.dependencies || [],
-                wave: 1,
-                generation: t.generation || 1
-              };
-            }),
-            edges: [],
-            total_tasks: tasks.length,
-            completed_tasks: tasks.filter(function(t) { return t.status === 'completed'; }).length,
-            ready_tasks: tasks.filter(function(t) { return t.status === 'queued' || t.status === 'ready'; }).length
-          };
-        }
-
-        if (statsSpan) {
-          statsSpan.textContent = `Total: ${dagData.total_tasks} · Ready: ${dagData.ready_tasks} · Completed: ${dagData.completed_tasks}`;
-        }
-
-        // Render DAG Nodes
-        if (!dagData.nodes || dagData.nodes.length === 0) {
-          dagContainer.innerHTML = '<div class="card" style="color:var(--text-muted)">No active tasks in DAG. Dispatch a task with dependencies to compose a workflow.</div>';
-        } else {
-          dagContainer.innerHTML = dagData.nodes.map(function(n) {
-            var depsHtml = (n.dependencies && n.dependencies.length > 0)
-              ? n.dependencies.map(function(d) {
-                  return `<span class="badge" style="font-size:10px;margin-right:4px;">dep: ${String(d).slice(0, 8)}</span>`;
-                }).join('')
-              : '<span style="font-size:11px;color:var(--text-muted)">Root Task (Ready)</span>';
-
-            var isReady = (n.dependencies || []).length === 0 || n.status === 'running' || n.status === 'completed';
-            var readyTag = isReady
-              ? '<span class="status-tag idle" style="font-size:9px;">Ready</span>'
-              : '<span class="status-tag pending" style="font-size:9px;">Blocked</span>';
-
-            return `
-              <div class="card">
-                <div class="card-header">
-                  <div style="display:flex;align-items:center;gap:6px;">
-                    <span class="badge" style="background:var(--info);color:#fff;font-size:9px;font-weight:600;">Wave ${n.wave}</span>
-                    <span class="card-title">${n.title}</span>
-                  </div>
-                  <div style="display:flex;gap:4px;align-items:center;">
-                    ${readyTag}
-                    <span class="status-tag ${n.status}">${n.status}</span>
-                  </div>
-                </div>
-                <div class="meta-row" style="margin:6px 0;">
-                  <span>Worker: <b>${n.worker_id || 'unassigned'}</b></span>
-                  <span>ID: <code>${n.task_id.slice(0, 8)}</code></span>
-                  <span>Gen: <b>${n.generation}</b></span>
-                </div>
-                <div style="font-size:11px;padding-top:4px;border-top:1px dashed var(--border);">
-                  Dependencies: ${depsHtml}
-                </div>
-              </div>
-            `;
-          }).join('');
-        }
-
-        // Render Ready Waves
-        if (wavesContainer) {
-          if (!wavesData || !wavesData.waves || wavesData.waves.length === 0) {
-            wavesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:10px;font-size:12px;">No tasks currently pending in ready waves.</div>';
-          } else {
-            wavesContainer.innerHTML = wavesData.waves.map(function(w) {
-              var tasksList = w.ready_tasks.map(function(rt) {
-                return `
-                  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px dashed var(--border);">
-                    <span style="font-weight:500;">${rt.title}</span>
-                    <div style="display:flex;gap:4px;align-items:center;">
-                      <span class="badge" style="font-size:9px;">${rt.worker_id || 'se'}</span>
-                      <span class="status-tag idle" style="font-size:9px;">${rt.priority}</span>
-                    </div>
-                  </div>
-                `;
-              }).join('');
-
-              var isCurrent = (w.wave_number === wavesData.current_wave);
-              var waveBadge = isCurrent
-                ? '<span class="status-tag running" style="font-size:9px;">Active Wave</span>'
-                : '<span class="status-tag pending" style="font-size:9px;">Next Tier</span>';
-
-              return `
-                <div class="card" style="margin-bottom:8px;${isCurrent ? 'border-left:3px solid var(--success);' : ''}">
-                  <div class="card-header">
-                    <span class="card-title" style="font-size:12px;">Wave ${w.wave_number} (${w.ready_tasks.length} ready tasks)</span>
-                    ${waveBadge}
-                  </div>
-                  <div style="font-size:11px;margin-top:4px;">
-                    ${tasksList}
-                  </div>
-                </div>
-              `;
-            }).join('');
-          }
-        }
-
-        // 3. Fetch Interactive Decision Gates from Gateway (ADR 0041 M5)
-        let gatesList = [];
-        try {
-          var gatesRes = await apiFetch('/integration/decision-gates');
-          if (gatesRes.ok) {
-            gatesList = await gatesRes.json();
-          }
-        } catch (_) {}
-
-        // Fallback: map review nodes from DAG if gatesList is empty
-        if ((!gatesList || gatesList.length === 0) && dagData.nodes) {
-          var reviewTasks = dagData.nodes.filter(function(t) { return t.status === 'review'; });
-          gatesList = reviewTasks.map(function(t) {
-            return {
-              gate_id: 'gate-' + t.task_id,
-              task_id: t.task_id,
-              title: t.title || t.task_id.slice(0, 8),
-              question: 'Worker execution paused requiring human review before downstream tasks proceed.',
-              execution_generation: t.generation || 1,
-              review_context: { assigned_worker: t.worker_id }
-            };
-          });
-        }
-
-        if (!gatesList || gatesList.length === 0) {
-          gatesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:12px;">All decision gates resolved. No tasks blocking on review.</div>';
-        } else {
-          gatesContainer.innerHTML = gatesList.map(function(g) {
-            var gen = g.execution_generation || 1;
-            var ctx = g.review_context || {};
-            var findings = ctx.last_error || ctx.findings || '';
-            return `
-              <div class="card" style="border-left: 3px solid var(--warning);">
-                <div class="card-header">
-                  <span class="card-title">Gate: ${g.title || g.gate_id}</span>
-                  <span class="status-tag review">Requires Decision</span>
-                </div>
-                <div style="font-size:12px;color:var(--text);margin-bottom:6px;">
-                  ${g.question || 'Worker execution requires human review before downstream tasks proceed.'}
-                </div>
-                ${findings ? `<div style="font-size:11px;color:var(--danger);background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:4px;margin-bottom:6px;">${findings}</div>` : ''}
-                <div class="meta-row" style="margin-bottom:10px;">
-                  <span>Worker: ${ctx.assigned_worker || 'unassigned'}</span>
-                  <span>Gate ID: <code>${g.gate_id}</code></span>
-                  <span>Gen Fence: <b>${gen}</b></span>
-                </div>
-                <div style="display:flex;gap:6px;">
-                  <button class="btn btn-sm btn-success" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'approve', ${gen})">Approve & Continue</button>
-                  <button class="btn btn-sm btn-danger" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'reject', ${gen})">Reject Gate</button>
-                </div>
-              </div>
-            `;
-          }).join('');
-        }
-      } catch (e) {
-        var diagCode = (lastDiagnosticResult && lastDiagnosticResult.code) || 'NETWORK_UNREACHABLE';
-        var diagRemediation = (lastDiagnosticResult && lastDiagnosticResult.remediation) || ('Connection to ' + activeApiBase + ' failed: ' + e.message);
-        dagContainer.innerHTML = `
-          <div class="card" style="border-left: 3px solid var(--danger);">
-            <div class="card-header">
-              <span class="card-title" style="color:var(--danger)">⚠️ Task DAG Offline [${diagCode}]</span>
-              <button class="btn btn-sm btn-secondary" onclick="switchTab('diagnostics')">Open Diagnostics</button>
-            </div>
-            <div style="font-size:12px;margin:6px 0;line-height:1.4;">
-              ${diagRemediation}
-            </div>
-            <div style="font-size:11px;color:var(--text-muted);border-top:1px dashed var(--border);padding-top:6px;margin-top:6px;">
-              PersonaOS owns the authoritative DAG state. Target: <code>${activeApiBase}</code>
-            </div>
-          </div>
-        `;
-        if (wavesContainer) {
-          wavesContainer.innerHTML = `
-            <div class="card" style="color:var(--text-muted);text-align:center;padding:10px;font-size:12px;">Ready waves unavailable while offline.</div>
-          `;
-        }
-        gatesContainer.innerHTML = `
-          <div class="card" style="border-left: 3px solid var(--warning);">
-            <div class="card-header">
-              <span class="card-title" style="color:var(--warning)">Decision Gates Paused</span>
-              <span class="status-tag pending">${diagCode}</span>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
-              Waiting for active connection to PersonaOS review queue.
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    async function submitTask() {
-      const workerId = document.getElementById('task-worker').value;
-      const title = document.getElementById('task-title').value.trim();
-      const objective = document.getElementById('task-objective').value.trim();
-      const priority = document.getElementById('task-priority').value;
-      const rawDeps = document.getElementById('task-deps') ? document.getElementById('task-deps').value.trim() : '';
-      const deps = rawDeps ? rawDeps.split(',').map(s => s.trim()).filter(Boolean) : [];
-      const runId = document.getElementById('task-run-id') ? document.getElementById('task-run-id').value.trim() : '';
-
-      if (!title || !objective) {
-        alert('Please provide a task title and objective.');
-        return;
-      }
-
-      try {
-        const bodyPayload = {
-          worker_id: workerId,
-          title: title,
-          objective: objective,
-          priority: priority,
-          dependencies: deps,
-          input: runId ? { run_id: runId } : {}
-        };
-
-        const res = await apiFetch('/tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyPayload)
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Task dispatched successfully with DAG context!');
-        document.getElementById('task-title').value = '';
-        document.getElementById('task-objective').value = '';
-        if (document.getElementById('task-deps')) document.getElementById('task-deps').value = '';
-        if (document.getElementById('task-run-id')) document.getElementById('task-run-id').value = '';
-        switchTab('orchestrator');
-      } catch (e) {
-        // Fallback to CLI command generation
-        copyTaskCurlCommand();
-        showToast('CLI dispatch command copied to clipboard! Paste into terminal.');
-      }
-    }
-
-    var sseSource = null;
-    var sseReconnectTimer = null;
-    var sseLastEventId = null;
-
-    function initSseStream() {
-      if (typeof EventSource === 'undefined') return;
-      if (sseSource) {
-        try { sseSource.close(); } catch (_) {}
-        sseSource = null;
-      }
-
-      var sseBadge = document.getElementById('sse-status-badge');
-      var cleanUrl = activeApiBase.replace(/\/+$/, '');
-      var sseUrl = cleanUrl + '/integration/events';
-      if (sseLastEventId) {
-        sseUrl += '?last_event_id=' + encodeURIComponent(sseLastEventId);
-      }
-
-      try {
-        sseSource = new EventSource(sseUrl);
-
-        sseSource.onopen = function() {
-          if (sseBadge) {
-            sseBadge.style.display = 'inline-block';
-            sseBadge.textContent = '● LIVE';
-            sseBadge.style.background = 'var(--success)';
-            sseBadge.title = 'Connected to real-time event stream';
-          }
-        };
-
-        function handleIncomingEvent(evt, type) {
-          if (evt.lastEventId) {
-            sseLastEventId = evt.lastEventId;
-          }
-
-          if (type === 'task_status_changed') {
-            var activeTab = document.querySelector('.tab-content.active');
-            if (activeTab && activeTab.id === 'tab-tasks') loadTasks();
-            if (activeTab && activeTab.id === 'tab-orchestrator') loadOrchestrationData();
-          } else if (type === 'ready_wave_advanced') {
-            loadOrchestrationData();
-          } else if (type === 'gate_created') {
-            showToast('🔔 New HITL Decision Gate requires sign-off!');
-            loadReviews();
-            loadOrchestrationData();
-          } else if (type === 'gate_resolved') {
-            loadReviews();
-            loadOrchestrationData();
-            loadTasks();
-          } else if (type === 'heartbeat') {
-            if (sseBadge) {
-              sseBadge.title = 'Live stream connected. Heartbeat: ' + new Date().toLocaleTimeString();
-            }
-          }
-        }
-
-        sseSource.addEventListener('task_status_changed', function(e) { handleIncomingEvent(e, 'task_status_changed'); });
-        sseSource.addEventListener('ready_wave_advanced', function(e) { handleIncomingEvent(e, 'ready_wave_advanced'); });
-        sseSource.addEventListener('gate_created', function(e) { handleIncomingEvent(e, 'gate_created'); });
-        sseSource.addEventListener('gate_resolved', function(e) { handleIncomingEvent(e, 'gate_resolved'); });
-        sseSource.addEventListener('heartbeat', function(e) { handleIncomingEvent(e, 'heartbeat'); });
-
-        sseSource.onerror = function() {
-          if (sseBadge) {
-            sseBadge.style.display = 'inline-block';
-            sseBadge.textContent = '○ RECONNECTING';
-            sseBadge.style.background = 'var(--warning)';
-          }
-          if (sseSource) {
-            try { sseSource.close(); } catch (_) {}
-            sseSource = null;
-          }
-          if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
-          sseReconnectTimer = setTimeout(initSseStream, 5000);
-        };
-      } catch (err) {
-        if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
-        sseReconnectTimer = setTimeout(initSseStream, 8000);
-      }
-    }
-
-    // Auto-detect working endpoint on boot, then load boards and connect SSE stream
-    autoDetectActiveEndpoint().then(function() {
-      checkHealth();
-      loadWorkers();
-      loadTasks();
-      initSseStream();
     });
 
-    // Background polling interval: acts as backup when SSE stream is disconnected
-    setInterval(function() {
-      checkHealth();
-      // If SSE is active and healthy (readyState === 1), skip redundant polling
-      if (sseSource && sseSource.readyState === 1) return;
+    function logEvent(type, payload, eventId) {
+      const entry = document.createElement('div');
+      entry.className = `event-entry ${type}`;
+      const timeStr = new Date().toLocaleTimeString();
+      const idStr = eventId ? ` [${eventId.substring(0, 8)}]` : '';
+      entry.textContent = `[${timeStr}] ${type.toUpperCase()}${idStr}: ${JSON.stringify(payload)}`;
+      eventsLog.prepend(entry);
+    }
 
-      var activeTab = document.querySelector('.tab-content.active');
-      if (activeTab && activeTab.id === 'tab-workers' && !isCspRestricted) loadWorkers();
-      if (activeTab && activeTab.id === 'tab-tasks' && !isCspRestricted) loadTasks();
-      if (activeTab && activeTab.id === 'tab-orchestrator' && !isCspRestricted) loadOrchestrationData();
-      if (activeTab && activeTab.id === 'tab-reviews' && !isCspRestricted) loadReviews();
-    }, 8000);
+    function setConnectionStatus(status, errText) {
+      sseBadge.className = 'badge';
+      if (status === 'connected') {
+        sseBadge.classList.add('badge-connected');
+        sseBadge.textContent = 'CONNECTED';
+        reconnectBadge.style.display = 'none';
+        state.connected = true;
+      } else if (status === 'reconnecting') {
+        sseBadge.classList.add('badge-reconnecting');
+        sseBadge.textContent = 'RECONNECTING';
+        reconnectBadge.style.display = 'inline-flex';
+        reconnectBadge.textContent = `${state.reconnectCount} Reconnects`;
+        state.connected = false;
+      } else {
+        sseBadge.classList.add('badge-disconnected');
+        sseBadge.textContent = 'DISCONNECTED';
+        state.connected = false;
+      }
+    }
+
+    // SSE Connection with auto-reconnection and Last-Event-ID resumption (ADR 0041 M6)
+    async function startSSE() {
+      if (state.abortController) {
+        state.abortController.abort();
+      }
+      state.abortController = new AbortController();
+
+      const base = urlInput.value.trim().replace(/\/+$/, '');
+      state.baseUrl = base;
+      state.token = tokenInput.value.trim();
+
+      const queryParts = ['heartbeat_interval=10'];
+      if (state.lastEventId) {
+        queryParts.push(`last_event_id=${encodeURIComponent(state.lastEventId)}`);
+      }
+      const streamUrl = `${base}/integration/events?${queryParts.join('&')}`;
+
+      const headers = { 'Accept': 'text/event-stream' };
+      if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+      }
+      if (state.lastEventId) {
+        headers['Last-Event-ID'] = state.lastEventId;
+      }
+
+      setConnectionStatus('reconnecting');
+
+      try {
+        const response = await fetch(streamUrl, {
+          headers,
+          signal: state.abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`SSE stream HTTP error: ${response.status}`);
+        }
+
+        setConnectionStatus('connected');
+        state.reconnectCount = 0;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEventId = null;
+        let currentEventType = 'message';
+        let currentData = [];
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\r\n|\r|\n/);
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line === '') {
+              // End of message frame
+              if (currentData.length > 0 || currentEventType === 'heartbeat') {
+                const raw = currentData.join('\n');
+                let parsed = {};
+                try { parsed = JSON.parse(raw); } catch (e) { parsed = { raw }; }
+
+                if (parsed.event_id) {
+                  currentEventId = parsed.event_id;
+                  state.lastEventId = currentEventId;
+                  lastEventIdDisplay.textContent = currentEventId;
+                }
+                if (parsed.event_type) currentEventType = parsed.event_type;
+                const payload = parsed.payload !== undefined ? parsed.payload : parsed;
+
+                logEvent(currentEventType, payload, currentEventId);
+
+                // Auto-refresh tabs on lifecycle transitions
+                if (currentEventType === 'task_status_changed' || currentEventType === 'ready_wave_advanced') {
+                  loadDag();
+                } else if (currentEventType === 'gate_created' || currentEventType === 'gate_resolved') {
+                  loadGates();
+                  loadDag();
+                }
+              }
+              currentEventId = null;
+              currentEventType = 'message';
+              currentData = [];
+              continue;
+            }
+
+            if (line.startsWith(':')) continue;
+            if (line.startsWith('id:')) {
+              currentEventId = line.substring(3).trim();
+              state.lastEventId = currentEventId;
+              lastEventIdDisplay.textContent = currentEventId;
+            } else if (line.startsWith('event:')) {
+              currentEventType = line.substring(6).trim();
+            } else if (line.startsWith('data:')) {
+              currentData.push(line.substring(5).trim());
+            } else if (line.startsWith('retry:')) {
+              const r = parseInt(line.substring(6).trim(), 10);
+              if (!isNaN(r)) state.retryDelayMs = r;
+            }
+          }
+        }
+        scheduleReconnect(new Error('Stream closed by server'));
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        scheduleReconnect(err);
+      }
+    }
+
+    function scheduleReconnect(err) {
+      setConnectionStatus('reconnecting', err.message);
+      state.reconnectCount++;
+      const expDelay = Math.min(state.retryDelayMs * Math.pow(state.backoffMultiplier, state.reconnectCount), state.maxRetryDelayMs);
+      const delay = Math.round(expDelay * (0.8 + Math.random() * 0.4));
+      logEvent('reconnecting', { attempt: state.reconnectCount, next_retry_ms: delay, error: err.message }, null);
+
+      setTimeout(() => {
+        if (!state.connected) {
+          startSSE();
+        }
+      }, delay);
+    }
+
+    function disconnectSSE() {
+      if (state.abortController) {
+        state.abortController.abort();
+        state.abortController = null;
+      }
+      setConnectionStatus('disconnected');
+      logEvent('disconnected', { message: 'Disconnected by operator' }, null);
+    }
+
+    // Load Workforce Roster
+    async function loadWorkers() {
+      const tbody = document.getElementById('workers-table-body');
+      try {
+        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+        const res = await fetch(`${state.baseUrl}/integration/workers`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const workers = await res.json();
+        tbody.innerHTML = '';
+        if (workers.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No workers found.</td></tr>';
+          return;
+        }
+        for (const w of workers) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><strong>${w.id}</strong></td>
+            <td>${w.name}</td>
+            <td>${w.role}</td>
+            <td><span class="badge ${w.status === 'idle' ? 'badge-connected' : 'badge-reconnecting'}">${w.status}</span></td>
+            <td>v${w.current_profile_version}</td>
+            <td style="font-family:var(--font-mono); font-size:11px;">${(w.capabilities || []).join(', ')}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent-red)">Failed to load workers: ${err.message}</td></tr>`;
+      }
+    }
+
+    // Load DAG & Ready Waves
+    async function loadDag() {
+      const container = document.getElementById('dag-nodes-container');
+      const summary = document.getElementById('dag-summary');
+      const runId = document.getElementById('run-select').value || 'default';
+      try {
+        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+        const res = await fetch(`${state.baseUrl}/integration/runs/${runId}/dag`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const dag = await res.json();
+
+        summary.textContent = `Total: ${dag.total_tasks} | Completed: ${dag.completed_tasks} | Ready: ${dag.ready_tasks}`;
+        container.innerHTML = '';
+        if (dag.nodes.length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted)">No tasks found in DAG projection.</div>';
+          return;
+        }
+        for (const n of dag.nodes) {
+          const card = document.createElement('div');
+          card.className = 'dag-node';
+          const statusCls = `node-status-${n.status}`;
+          card.innerHTML = `
+            <div class="node-header">
+              <span>${n.title}</span>
+              <span class="${statusCls}">[${n.status.toUpperCase()}]</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted)">
+              ID: ${n.task_id.substring(0, 8)}... | Worker: ${n.worker_id || 'unassigned'}
+            </div>
+            <div style="font-size:11px;">
+              Wave: <strong>Tier ${n.wave}</strong> | Gen: ${n.generation}
+            </div>
+          `;
+          container.appendChild(card);
+        }
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--accent-red)">Failed to load DAG: ${err.message}</div>`;
+      }
+    }
+
+    // Load Decision Gates
+    async function loadGates() {
+      const container = document.getElementById('gates-container');
+      const countBadge = document.getElementById('gates-count');
+      try {
+        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+        const res = await fetch(`${state.baseUrl}/integration/decision-gates`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const gates = await res.json();
+        countBadge.textContent = gates.length;
+        container.innerHTML = '';
+
+        if (gates.length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted)">No decision gates awaiting review.</div>';
+          return;
+        }
+
+        for (const g of gates) {
+          const gateCard = document.createElement('div');
+          gateCard.style.cssText = 'background:var(--bg-card); border:1px solid var(--border); border-radius:4px; padding:10px; margin-bottom:8px;';
+          gateCard.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <strong>${g.title}</strong>
+              <span class="badge badge-reconnecting">PENDING (Gen ${g.execution_generation})</span>
+            </div>
+            <p style="font-size:12px; margin-bottom:6px;">${g.question}</p>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+              Last Error: ${g.review_context?.last_error || 'N/A'} | Reason: ${g.review_context?.exhaustion_reason || 'review'}
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-primary" onclick="resolveGate('${g.gate_id}', 'approve', ${g.execution_generation})">Approve & Resume</button>
+              <button class="btn-danger" onclick="resolveGate('${g.gate_id}', 'reject', ${g.execution_generation})">Reject</button>
+            </div>
+          `;
+          container.appendChild(gateCard);
+        }
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--accent-red)">Failed to load gates: ${err.message}</div>`;
+      }
+    }
+
+    window.resolveGate = async function(gateId, decision, expectedGen) {
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+        const body = JSON.stringify({
+          decision,
+          expected_generation: expectedGen,
+          review_notes: `Operator decision from Orca ADE panel (${decision})`,
+        });
+        const res = await fetch(`${state.baseUrl}/integration/decision-gates/${gateId}/resolve`, {
+          method: 'POST',
+          headers,
+          body,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(`Gate resolution failed (${res.status}): ${err.detail || 'Unknown error'}`);
+          return;
+        }
+        loadGates();
+        loadDag();
+      } catch (err) {
+        alert(`Error resolving gate: ${err.message}`);
+      }
+    };
+
+    // Diagnostics Probe
+    async function runDiagnostics() {
+      const diagDiv = document.getElementById('diag-results');
+      diagDiv.textContent = 'Probing connection and security boundaries...';
+      try {
+        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+        const res = await fetch(`${state.baseUrl}/integration/diagnostics`, { headers });
+        const diag = await res.json();
+        diagDiv.innerHTML = `
+          <div>Status: <strong style="color:${diag.status === 'ok' ? 'var(--accent-green)' : 'var(--accent-yellow)'}">${diag.status.toUpperCase()} (${diag.code})</strong></div>
+          <div>Latency: <strong>${diag.latency_ms} ms</strong></div>
+          <div>Upstream URL: ${diag.upstream_url}</div>
+          <div>CORS Supported: ${diag.cors_supported} | PNA Supported: ${diag.pna_supported}</div>
+          <div>Auth Status: ${diag.auth_status} | Version Match: ${diag.api_version_match}</div>
+          ${diag.remediation ? `<div style="color:var(--accent-yellow); margin-top:6px;">Remediation: ${diag.remediation}</div>` : ''}
+          <div style="margin-top:6px; color:var(--text-muted)">Details: ${JSON.stringify(diag.details)}</div>
+        `;
+      } catch (err) {
+        diagDiv.innerHTML = `<div style="color:var(--accent-red)">Diagnostic probe failed: ${err.message}</div>`;
+      }
+    }
+
+    // Button event listeners
+    document.getElementById('btn-reconnect').addEventListener('click', () => startSSE());
+    document.getElementById('btn-disconnect').addEventListener('click', () => disconnectSSE());
+    document.getElementById('btn-clear-log').addEventListener('click', () => { eventsLog.innerHTML = ''; });
+    document.getElementById('btn-diagnostics').addEventListener('click', () => {
+      document.querySelector('[data-tab="tab-diagnostics"]').click();
+      runDiagnostics();
+    });
+    document.getElementById('btn-run-full-diag').addEventListener('click', () => runDiagnostics());
+    document.getElementById('btn-refresh-workers').addEventListener('click', () => loadWorkers());
+    document.getElementById('btn-refresh-dag').addEventListener('click', () => loadDag());
+    document.getElementById('btn-refresh-gates').addEventListener('click', () => loadGates());
+
+    // Auto-start on load
+    window.addEventListener('DOMContentLoaded', () => {
+      startSSE();
+    });
   </script>
 </body>
 </html>

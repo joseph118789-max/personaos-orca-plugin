@@ -8,21 +8,6 @@
  * - Strict prohibition on direct external agent CLI execution
  */
 
-export * from './contracts'
-import type {
-  GatewayDagProjection,
-  GatewayDecisionGate,
-  GatewayDiagnosticsResponse,
-  GatewayEventMessage,
-  GatewayGateResolveRequest,
-  GatewayGateResolveResponse,
-  GatewayHealthResponse,
-  GatewayReadyWavesResponse,
-  GatewayRunCreateRequest,
-  GatewayRunSummary,
-  GatewayWorkerSummary,
-} from './contracts'
-
 export interface PersonaOSWorker {
   id: string
   name: string
@@ -112,6 +97,334 @@ export interface InterAgentMessage {
   created_at?: string
 }
 
+/**
+ * Server-Sent Events lifecycle event types and subscription models (ADR 0041 M6).
+ */
+export type GatewayEventType =
+  | 'task_status_changed'
+  | 'ready_wave_advanced'
+  | 'gate_created'
+  | 'gate_resolved'
+  | 'heartbeat'
+  | string
+
+export interface GatewayEventMessage {
+  event_id: string
+  event_type: GatewayEventType
+  payload: Record<string, unknown>
+  timestamp: string
+}
+
+export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+
+export interface EventStreamOptions {
+  runId?: string
+  heartbeatInterval?: number
+  initialLastEventId?: string
+  maxReconnectAttempts?: number
+  reconnectDelayMs?: number
+  maxReconnectDelayMs?: number
+  backoffMultiplier?: number
+  heartbeatTimeoutMs?: number
+  onEvent?: (event: GatewayEventMessage) => void
+  onTaskStatusChanged?: (payload: Record<string, unknown>, eventId: string) => void
+  onReadyWaveAdvanced?: (payload: Record<string, unknown>, eventId: string) => void
+  onGateCreated?: (payload: Record<string, unknown>, eventId: string) => void
+  onGateResolved?: (payload: Record<string, unknown>, eventId: string) => void
+  onHeartbeat?: (timestamp: string) => void
+  onConnectionStateChange?: (state: ConnectionState, error?: Error) => void
+  onError?: (error: Error) => void
+}
+
+export interface EventStreamSubscription {
+  unsubscribe: () => void
+  close: () => void
+  isConnected: () => boolean
+  getConnectionState: () => ConnectionState
+  getLastEventId: () => string | null
+}
+
+/**
+ * Robust Server-Sent Events streaming manager with auto-reconnection and Last-Event-ID resumption.
+ */
+class SSEStreamManager implements EventStreamSubscription {
+  private abortController: AbortController | null = null
+  private connected = false
+  private connectionState: ConnectionState = 'disconnected'
+  private lastEventId: string | null = null
+  private reconnectAttempts = 0
+  private closed = false
+  private watchdogTimer: any = null
+  private reconnectTimer: any = null
+  private retryDelayMs = 3000
+
+  constructor(
+    private baseUrl: string,
+    private token: string | undefined,
+    private options: EventStreamOptions
+  ) {
+    if (options.initialLastEventId) {
+      this.lastEventId = options.initialLastEventId
+    }
+    this.retryDelayMs = options.reconnectDelayMs ?? 1000
+  }
+
+  start() {
+    this.closed = false
+    this.connect()
+  }
+
+  unsubscribe() {
+    this.close()
+  }
+
+  close() {
+    this.closed = true
+    this.clearWatchdog()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = null
+    }
+    this.connected = false
+    this.setConnectionState('disconnected')
+  }
+
+  isConnected(): boolean {
+    return this.connected
+  }
+
+  getConnectionState(): ConnectionState {
+    return this.connectionState
+  }
+
+  getLastEventId(): string | null {
+    return this.lastEventId
+  }
+
+  private setConnectionState(state: ConnectionState, error?: Error) {
+    this.connectionState = state
+    this.connected = state === 'connected'
+    this.options.onConnectionStateChange?.(state, error)
+  }
+
+  private resetWatchdog() {
+    this.clearWatchdog()
+    const timeoutMs = this.options.heartbeatTimeoutMs ?? 30000
+    this.watchdogTimer = setTimeout(() => {
+      // Half-open connection detected (no frame received within watchdog window)
+      if (!this.closed && this.connected) {
+        if (this.abortController) {
+          this.abortController.abort()
+        }
+        this.handleDisconnect(new Error(`Watchdog timeout: no SSE frame received within ${timeoutMs}ms`))
+      }
+    }, timeoutMs)
+  }
+
+  private clearWatchdog() {
+    if (this.watchdogTimer) {
+      clearTimeout(this.watchdogTimer)
+      this.watchdogTimer = null
+    }
+  }
+
+  private async connect() {
+    if (this.closed) return
+
+    const isReconnect = this.reconnectAttempts > 0
+    this.setConnectionState(isReconnect ? 'reconnecting' : 'connecting')
+
+    this.abortController = new AbortController()
+    const interval = this.options.heartbeatInterval ?? 15.0
+    const queryParts: string[] = [`heartbeat_interval=${interval}`]
+    if (this.options.runId) {
+      queryParts.push(`run_id=${encodeURIComponent(this.options.runId)}`)
+    }
+    if (this.lastEventId) {
+      queryParts.push(`last_event_id=${encodeURIComponent(this.lastEventId)}`)
+    }
+
+    const url = `${this.baseUrl}/integration/events?${queryParts.join('&')}`
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    }
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    }
+    if (this.lastEventId) {
+      headers['Last-Event-ID'] = this.lastEventId
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: this.abortController.signal,
+      })
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '')
+        throw new Error(`SSE endpoint returned status ${response.status}: ${errText}`)
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null, readable stream required for SSE')
+      }
+
+      this.reconnectAttempts = 0
+      this.setConnectionState('connected')
+      this.resetWatchdog()
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let currentEventId: string | null = null
+      let currentEventType = 'message'
+      let currentDataLines: string[] = []
+
+      while (!this.closed) {
+        const { value, done } = await reader.read()
+        if (done) break
+
+        this.resetWatchdog()
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split(/\r\n|\r|\n/)
+        // Last element may be a partial line, keep in buffer
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (line === '') {
+            // End of message block -> dispatch
+            if (currentDataLines.length > 0 || currentEventType === 'heartbeat') {
+              const dataStr = currentDataLines.join('\n')
+              this.dispatchEvent(currentEventId, currentEventType, dataStr)
+            }
+            // Reset block fields
+            currentEventId = null
+            currentEventType = 'message'
+            currentDataLines = []
+            continue
+          }
+
+          if (line.startsWith(':')) {
+            // Comment frame (e.g. ": connected")
+            continue
+          }
+
+          if (line.startsWith('id:')) {
+            currentEventId = line.substring(3).trim()
+            if (currentEventId) {
+              this.lastEventId = currentEventId
+            }
+          } else if (line.startsWith('event:')) {
+            currentEventType = line.substring(6).trim()
+          } else if (line.startsWith('data:')) {
+            currentDataLines.push(line.substring(5).trim())
+          } else if (line.startsWith('retry:')) {
+            const parsedRetry = parseInt(line.substring(6).trim(), 10)
+            if (!isNaN(parsedRetry) && parsedRetry > 0) {
+              this.retryDelayMs = parsedRetry
+            }
+          }
+        }
+      }
+
+      if (!this.closed) {
+        this.handleDisconnect(new Error('SSE stream closed by server'))
+      }
+    } catch (err: any) {
+      if (this.closed) return
+      if (err.name === 'AbortError') return
+      this.handleDisconnect(err instanceof Error ? err : new Error(String(err)))
+    }
+  }
+
+  private dispatchEvent(eventId: string | null, eventType: string, rawData: string) {
+    let payload: Record<string, unknown> = {}
+    if (rawData) {
+      try {
+        const parsed = JSON.parse(rawData)
+        if (typeof parsed === 'object' && parsed !== null) {
+          // If the server wrapped the payload inside GatewayEventMessage, unwrap
+          if ('payload' in parsed && typeof parsed.payload === 'object' && parsed.payload !== null) {
+            payload = parsed.payload as Record<string, unknown>
+            if ('event_id' in parsed && typeof parsed.event_id === 'string') {
+              eventId = parsed.event_id
+              this.lastEventId = eventId
+            }
+            if ('event_type' in parsed && typeof parsed.event_type === 'string') {
+              eventType = parsed.event_type
+            }
+          } else {
+            payload = parsed as Record<string, unknown>
+          }
+        } else {
+          payload = { value: parsed }
+        }
+      } catch {
+        payload = { raw: rawData }
+      }
+    }
+
+    const eventMessage: GatewayEventMessage = {
+      event_id: eventId ?? `evt-${Date.now()}`,
+      event_type: eventType,
+      payload,
+      timestamp: new Date().toISOString(),
+    }
+
+    // Callback notifications
+    if (eventType === 'heartbeat') {
+      const hbTime = (payload.timestamp as string) || eventMessage.timestamp
+      this.options.onHeartbeat?.(hbTime)
+    } else if (eventType === 'task_status_changed') {
+      this.options.onTaskStatusChanged?.(payload, eventMessage.event_id)
+    } else if (eventType === 'ready_wave_advanced') {
+      this.options.onReadyWaveAdvanced?.(payload, eventMessage.event_id)
+    } else if (eventType === 'gate_created') {
+      this.options.onGateCreated?.(payload, eventMessage.event_id)
+    } else if (eventType === 'gate_resolved') {
+      this.options.onGateResolved?.(payload, eventMessage.event_id)
+    }
+
+    this.options.onEvent?.(eventMessage)
+  }
+
+  private handleDisconnect(error: Error) {
+    this.clearWatchdog()
+    this.connected = false
+
+    const maxAttempts = this.options.maxReconnectAttempts ?? Infinity
+    if (this.reconnectAttempts >= maxAttempts) {
+      this.setConnectionState('disconnected', error)
+      this.options.onError?.(new Error(`Max reconnection attempts (${maxAttempts}) exceeded: ${error.message}`))
+      return
+    }
+
+    this.setConnectionState('reconnecting', error)
+    this.options.onError?.(error)
+
+    const baseDelay = this.options.reconnectDelayMs ?? this.retryDelayMs
+    const multiplier = this.options.backoffMultiplier ?? 1.5
+    const maxDelay = this.options.maxReconnectDelayMs ?? 30000
+
+    // Exponential backoff with 20% jitter
+    const expDelay = Math.min(baseDelay * Math.pow(multiplier, this.reconnectAttempts), maxDelay)
+    const jitter = 0.8 + Math.random() * 0.4
+    const delay = Math.round(expDelay * jitter)
+
+    this.reconnectAttempts++
+    this.reconnectTimer = setTimeout(() => {
+      this.connect()
+    }, delay)
+  }
+}
+
 export class PersonaOSOrcaPluginClient {
   private apiBaseUrl: string
   private token?: string
@@ -132,60 +445,17 @@ export class PersonaOSOrcaPluginClient {
   }
 
   /**
-   * Run end-to-end connectivity diagnostics against the Integration Gateway (ADR 0041).
+   * Fetch list of available persistent workers from PersonaOS.
    */
-  async checkDiagnostics(targetUrl?: string): Promise<GatewayDiagnosticsResponse> {
-    const url = new URL(`${this.apiBaseUrl}/integration/diagnostics`)
-    if (targetUrl) {
-      url.searchParams.set('target_url', targetUrl)
-    }
-    const res = await fetch(url.toString(), {
+  async listWorkers(): Promise<PersonaOSWorker[]> {
+    const res = await fetch(`${this.apiBaseUrl}/workers`, {
       method: 'GET',
       headers: this.getHeaders(),
     })
     if (!res.ok) {
-      throw new Error(`Diagnostics probe failed: ${res.status} ${res.statusText}`)
+      throw new Error(`Failed to list PersonaOS workers: ${res.status} ${res.statusText}`)
     }
-    return (await res.json()) as GatewayDiagnosticsResponse
-  }
-
-  /**
-   * Check Integration Gateway operational health.
-   */
-  async getIntegrationHealth(): Promise<GatewayHealthResponse> {
-    const res = await fetch(`${this.apiBaseUrl}/integration/health`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) {
-      throw new Error(`Gateway health probe failed: ${res.status} ${res.statusText}`)
-    }
-    return (await res.json()) as GatewayHealthResponse
-  }
-
-  /**
-   * Fetch list of available persistent workers from PersonaOS Gateway (/integration/workers),
-   * with automatic fallback to /workers endpoint.
-   */
-  async listWorkers(): Promise<GatewayWorkerSummary[]> {
-    try {
-      const res = await fetch(`${this.apiBaseUrl}/integration/workers`, {
-        method: 'GET',
-        headers: this.getHeaders(),
-      })
-      if (res.ok) {
-        return (await res.json()) as GatewayWorkerSummary[]
-      }
-    } catch (_) {}
-
-    const fallbackRes = await fetch(`${this.apiBaseUrl}/workers`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
-    if (!fallbackRes.ok) {
-      throw new Error(`Failed to list PersonaOS workers: ${fallbackRes.status} ${fallbackRes.statusText}`)
-    }
-    return (await fallbackRes.json()) as GatewayWorkerSummary[]
+    return (await res.json()) as PersonaOSWorker[]
   }
 
   /**
@@ -202,7 +472,6 @@ export class PersonaOSOrcaPluginClient {
       metadata: options.runId ? { run_id: options.runId } : undefined,
       input: {
         ...(options.inputData || {}),
-        run_id: options.runId,
         worktree: options.worktreeId ? {
           worktree_id: options.worktreeId,
           path: options.worktreePath,
@@ -224,64 +493,6 @@ export class PersonaOSOrcaPluginClient {
     }
 
     return (await res.json()) as { id: string; status: string }
-  }
-
-  /**
-   * List active external coordination runs (ADR 0040 / ADR 0041).
-   */
-  async listRuns(): Promise<GatewayRunSummary[]> {
-    const res = await fetch(`${this.apiBaseUrl}/integration/runs`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) {
-      throw new Error(`Failed to list coordination runs: ${res.status} ${res.statusText}`)
-    }
-    return (await res.json()) as GatewayRunSummary[]
-  }
-
-  /**
-   * Create or register an external coordination run.
-   */
-  async createRun(req: GatewayRunCreateRequest): Promise<GatewayRunSummary> {
-    const res = await fetch(`${this.apiBaseUrl}/integration/runs`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(req),
-    })
-    if (!res.ok) {
-      const errText = await res.text()
-      throw new Error(`Failed to create coordination run: ${res.status} ${errText}`)
-    }
-    return (await res.json()) as GatewayRunSummary
-  }
-
-  /**
-   * Fetch pre-evaluated directed acyclic graph (DAG) projection for a coordination run.
-   */
-  async getRunDag(runId = 'default'): Promise<GatewayDagProjection> {
-    const res = await fetch(`${this.apiBaseUrl}/integration/runs/${encodeURIComponent(runId)}/dag`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) {
-      throw new Error(`Failed to fetch DAG for run ${runId}: ${res.status} ${res.statusText}`)
-    }
-    return (await res.json()) as GatewayDagProjection
-  }
-
-  /**
-   * Fetch ready-to-execute tasks grouped by topological wave.
-   */
-  async getReadyWaves(runId = 'default'): Promise<GatewayReadyWavesResponse> {
-    const res = await fetch(`${this.apiBaseUrl}/integration/runs/${encodeURIComponent(runId)}/ready-waves`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) {
-      throw new Error(`Failed to fetch ready waves for run ${runId}: ${res.status} ${res.statusText}`)
-    }
-    return (await res.json()) as GatewayReadyWavesResponse
   }
 
   /**
@@ -357,170 +568,186 @@ export class PersonaOSOrcaPluginClient {
   }
 
   /**
-   * List interactive decision gates requiring human review (ADR 0041 M5).
+   * Subscribe to the Integration Gateway Server-Sent Events lifecycle stream.
+   * Features:
+   * - Automatic reconnection with exponential backoff and jitter
+   * - Last-Event-ID resumption (zero dropped events)
+   * - Heartbeat watchdog to detect silent half-open connections
+   * - Typed event callbacks
    */
-  async listDecisionGates(runId?: string): Promise<GatewayDecisionGate[]> {
-    const url = new URL(`${this.apiBaseUrl}/integration/decision-gates`)
-    if (runId) {
-      url.searchParams.set('run_id', runId)
-    }
-    const res = await fetch(url.toString(), {
+  subscribeLifecycleEvents(options: EventStreamOptions = {}): EventStreamSubscription {
+    const manager = new SSEStreamManager(this.apiBaseUrl, this.token, options)
+    manager.start()
+    return manager
+  }
+
+  // --------------------------------------------------------------------------
+  // Standardized Gateway API Methods (/integration/*) - ADR 0041
+  // --------------------------------------------------------------------------
+
+  async getHealth(): Promise<{
+    status: string
+    gateway_version: string
+    personaos_connected: boolean
+    personaos_url: string
+    pab_connected: boolean
+    timestamp: string
+  }> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/health`, {
       method: 'GET',
       headers: this.getHeaders(),
     })
-    if (!res.ok) {
-      throw new Error(`Failed to list decision gates: ${res.status} ${res.statusText}`)
-    }
-    return (await res.json()) as GatewayDecisionGate[]
+    if (!res.ok) throw new Error(`Gateway health check failed: ${res.status}`)
+    return await res.json()
   }
 
-  /**
-   * Get single decision gate details and diagnostic context.
-   */
-  async getDecisionGate(gateId: string): Promise<GatewayDecisionGate> {
+  async getDiagnostics(targetUrl?: string): Promise<Record<string, unknown>> {
+    const query = targetUrl ? `?target_url=${encodeURIComponent(targetUrl)}` : ''
+    const res = await fetch(`${this.apiBaseUrl}/integration/diagnostics${query}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) throw new Error(`Diagnostics probe failed: ${res.status}`)
+    return await res.json()
+  }
+
+  async listRuns(): Promise<OrchestrationRun[]> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) throw new Error(`Failed to list coordination runs: ${res.status}`)
+    return await res.json()
+  }
+
+  async createRun(run: {
+    run_id: string
+    objective: string
+    coordinator_handle?: string
+    metadata?: Record<string, unknown>
+  }): Promise<OrchestrationRun> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(run),
+    })
+    if (!res.ok) throw new Error(`Failed to create coordination run: ${res.status}`)
+    return await res.json()
+  }
+
+  async getRunDag(runId: string): Promise<{
+    run_id: string
+    nodes: Array<{
+      task_id: string
+      title: string
+      worker_id?: string
+      status: string
+      dependencies: string[]
+      wave: number
+      generation: number
+    }>
+    edges: Array<{ from: string; to: string }>
+    total_tasks: number
+    completed_tasks: number
+    ready_tasks: number
+  }> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs/${encodeURIComponent(runId)}/dag`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) throw new Error(`Failed to get DAG for run ${runId}: ${res.status}`)
+    return await res.json()
+  }
+
+  async getRunReadyWaves(runId: string): Promise<{
+    run_id: string
+    current_wave: number
+    waves: Array<{
+      wave_number: number
+      ready_tasks: Array<{
+        task_id: string
+        title: string
+        worker_id?: string
+        priority: string
+        generation: number
+      }>
+    }>
+  }> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs/${encodeURIComponent(runId)}/ready-waves`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) throw new Error(`Failed to get ready waves for run ${runId}: ${res.status}`)
+    return await res.json()
+  }
+
+  async listDecisionGates(runId?: string): Promise<DecisionGate[]> {
+    const query = runId ? `?run_id=${encodeURIComponent(runId)}` : ''
+    const res = await fetch(`${this.apiBaseUrl}/integration/decision-gates${query}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) throw new Error(`Failed to list decision gates: ${res.status}`)
+    return await res.json()
+  }
+
+  async getDecisionGate(gateId: string): Promise<DecisionGate> {
     const res = await fetch(`${this.apiBaseUrl}/integration/decision-gates/${encodeURIComponent(gateId)}`, {
       method: 'GET',
       headers: this.getHeaders(),
     })
-    if (!res.ok) {
-      throw new Error(`Failed to fetch decision gate ${gateId}: ${res.status} ${res.statusText}`)
-    }
-    return (await res.json()) as GatewayDecisionGate
+    if (!res.ok) throw new Error(`Failed to get decision gate ${gateId}: ${res.status}`)
+    return await res.json()
   }
 
-  /**
-   * Resolve an interactive decision gate with generation-fenced approval or rejection.
-   */
   async resolveDecisionGate(
     gateId: string,
-    req: GatewayGateResolveRequest
-  ): Promise<GatewayGateResolveResponse> {
+    decision: 'approve' | 'reject',
+    expectedGeneration: number,
+    reviewNotes?: string,
+    selectedOption?: string
+  ): Promise<{
+    gate_id: string
+    task_id: string
+    resolved: boolean
+    status: string
+    new_generation: number
+    timestamp: string
+  }> {
     const res = await fetch(`${this.apiBaseUrl}/integration/decision-gates/${encodeURIComponent(gateId)}/resolve`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify(req),
+      body: JSON.stringify({
+        decision,
+        expected_generation: expectedGeneration,
+        review_notes: reviewNotes,
+        selected_option: selectedOption,
+      }),
     })
     if (!res.ok) {
       const errText = await res.text()
-      if (res.status === 409) {
-        throw new Error(`STALE_GENERATION_CONFLICT: ${errText}`)
-      }
       throw new Error(`Failed to resolve decision gate ${gateId}: ${res.status} ${errText}`)
     }
-    return (await res.json()) as GatewayGateResolveResponse
+    return await res.json()
   }
 
-  /**
-   * Subscribe to real-time Server-Sent Events (SSE) lifecycle stream (ADR 0041 M6).
-   *
-   * Automatically handles connection, typed message dispatching, heartbeat monitoring,
-   * and reconnects with Last-Event-ID resumption.
-   */
-  subscribeToEvents(options: {
-    onEvent: (event: GatewayEventMessage) => void
-    onError?: (err: Error) => void
-    onConnected?: () => void
-    runId?: string
-    lastEventId?: string
-  }): { close: () => void } {
-    let closed = false
-    let currentLastEventId = options.lastEventId
-    let es: any = null
-    let reconnectTimeout: any = null
-    let backoffMs = 1000
-
-    const connect = () => {
-      if (closed) return
-
-      if (typeof EventSource === 'undefined') {
-        if (options.onError) {
-          options.onError(new Error('EventSource is not supported in this runtime environment'))
-        }
-        return
-      }
-
-      const url = new URL(`${this.apiBaseUrl}/integration/events`)
-      if (options.runId) {
-        url.searchParams.set('run_id', options.runId)
-      }
-      if (currentLastEventId) {
-        url.searchParams.set('last_event_id', currentLastEventId)
-      }
-
-      try {
-        es = new EventSource(url.toString())
-
-        es.onopen = () => {
-          backoffMs = 1000
-          if (options.onConnected) options.onConnected()
-        }
-
-        const handleMsg = (event: any, eventType: string) => {
-          if (event.lastEventId) {
-            currentLastEventId = event.lastEventId
-          }
-          try {
-            const data = JSON.parse(event.data)
-            options.onEvent({
-              event_id: event.lastEventId || data.event_id || 'unknown',
-              event_type: eventType,
-              payload: data.payload || data,
-              timestamp: data.timestamp || new Date().toISOString(),
-            })
-          } catch (_) {
-            options.onEvent({
-              event_id: event.lastEventId || 'heartbeat',
-              event_type: eventType,
-              payload: { raw: event.data },
-              timestamp: new Date().toISOString(),
-            })
-          }
-        }
-
-        es.addEventListener('task_status_changed', (e: any) => handleMsg(e, 'task_status_changed'))
-        es.addEventListener('ready_wave_advanced', (e: any) => handleMsg(e, 'ready_wave_advanced'))
-        es.addEventListener('gate_created', (e: any) => handleMsg(e, 'gate_created'))
-        es.addEventListener('gate_resolved', (e: any) => handleMsg(e, 'gate_resolved'))
-        es.addEventListener('heartbeat', (e: any) => handleMsg(e, 'heartbeat'))
-
-        es.onmessage = (e: any) => {
-          handleMsg(e, 'message')
-        }
-
-        es.onerror = () => {
-          if (es) {
-            es.close()
-            es = null
-          }
-          if (options.onError) {
-            options.onError(new Error('SSE connection interrupted'))
-          }
-          if (!closed) {
-            reconnectTimeout = setTimeout(connect, backoffMs)
-            backoffMs = Math.min(backoffMs * 1.5, 15000)
-          }
-        }
-      } catch (err) {
-        if (options.onError) options.onError(err as Error)
-        if (!closed) {
-          reconnectTimeout = setTimeout(connect, backoffMs)
-          backoffMs = Math.min(backoffMs * 1.5, 15000)
-        }
-      }
-    }
-
-    connect()
-
-    return {
-      close: () => {
-        closed = true
-        if (reconnectTimeout) clearTimeout(reconnectTimeout)
-        if (es) {
-          es.close()
-          es = null
-        }
-      },
-    }
+  async publishEvent(
+    eventType: GatewayEventType,
+    payload: Record<string, unknown> = {},
+    eventId?: string
+  ): Promise<GatewayEventMessage> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/events/publish`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        event_id: eventId ?? `evt-${Date.now()}`,
+        event_type: eventType,
+        payload,
+        timestamp: new Date().toISOString(),
+      }),
+    })
+    if (!res.ok) throw new Error(`Failed to publish event: ${res.status}`)
+    return await res.json()
   }
 
   /**
