@@ -25,6 +25,8 @@ export interface TaskSubmitOptions {
   worktreePath?: string
   worktreeId?: string
   branch?: string
+  dependencies?: string[]
+  runId?: string
   inputData?: Record<string, unknown>
 }
 
@@ -34,6 +36,65 @@ export interface TaskReviewContext {
   review_notes?: string
   worker_id?: string
   generation?: number
+}
+
+/**
+ * External coordination run representation in Orca ADE (ADR 0040).
+ */
+export interface OrchestrationRun {
+  run_id: string
+  objective: string
+  coordinator_handle?: string
+  consumer_generation: number
+  legacy?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+/**
+ * Task representation projected to/from Orca Orchestration DAG.
+ */
+export interface OrchestrationTask {
+  task_id: string
+  spec: string
+  task_title?: string
+  display_name?: string
+  status: 'pending' | 'ready' | 'claimed' | 'running' | 'review' | 'completed' | 'failed'
+  deps: string[]
+  parent_id?: string
+  run_id?: string
+  personaos_task_id?: string
+}
+
+/**
+ * Decision gate in Orca Orchestration mirroring PersonaOS review queue.
+ */
+export interface DecisionGate {
+  gate_id: string
+  task_id: string
+  question: string
+  options: string[]
+  status: 'pending' | 'resolved'
+  resolution?: string
+  run_id?: string
+}
+
+/**
+ * Inter-agent or coordinator lifecycle message.
+ */
+export interface InterAgentMessage {
+  message_id: string
+  msg_type: string
+  subject: string
+  from_handle?: string
+  to_handle?: string
+  body?: string
+  task_id?: string
+  dispatch_id?: string
+  outcome?: 'succeeded' | 'failed'
+  files_modified?: string[]
+  phase?: string
+  created_at?: string
 }
 
 export class PersonaOSOrcaPluginClient {
@@ -70,7 +131,7 @@ export class PersonaOSOrcaPluginClient {
   }
 
   /**
-   * Enqueue a task to PersonaOS with active worktree binding.
+   * Enqueue a task to PersonaOS with active worktree binding and optional DAG dependencies.
    * Note: This NEVER spawns agent processes directly. Dispatch is handled
    * by PersonaOS WorkerExecutionKernel through the PAB Control Plane.
    */
@@ -79,6 +140,8 @@ export class PersonaOSOrcaPluginClient {
       worker_id: options.workerId,
       title: options.title,
       objective: options.objective,
+      dependencies: options.dependencies || [],
+      metadata: options.runId ? { run_id: options.runId } : undefined,
       input: {
         ...(options.inputData || {}),
         worktree: options.worktreeId ? {
@@ -149,10 +212,51 @@ export class PersonaOSOrcaPluginClient {
   }
 
   /**
+   * Resolve an Orca Decision Gate through PersonaOS Review Queue (ADR 0040).
+   * Orca presents the decision gate UX, but resolution must invoke PersonaOS
+   * with explicit generation fencing and operator audit.
+   */
+  async resolveDecisionGateThroughReview(
+    taskId: string,
+    expectedGeneration: number,
+    operatorId: string,
+    action: 'approve' | 'reject',
+    notesOrReason: string
+  ): Promise<{ ok: boolean }> {
+    const url = `${this.apiBaseUrl}/tasks/${taskId}/${action}`
+    const body = action === 'approve'
+      ? { expected_generation: expectedGeneration, operator_id: operatorId, review_notes: notesOrReason }
+      : { expected_generation: expectedGeneration, operator_id: operatorId, reason: notesOrReason }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to resolve decision gate for task ${taskId}: ${res.status}`)
+    }
+    return (await res.json()) as { ok: boolean }
+  }
+
+  /**
    * Guard verifying that no external agent binary is directly executed by the UI.
+   * Invariant (ADR 0038 / ADR 0040): UI and ADE layers must NEVER spawn raw agent binaries.
    */
   assertZeroDirectAgentExecution(targetCommand: string): void {
-    const prohibited = ['openclaw', 'codex', 'claude', 'agy', 'mcode', 'dsh', 'pi']
+    const prohibited = [
+      'openclaw',
+      'codex',
+      'claude',
+      'agy',
+      'mcode',
+      'dsh',
+      'pi',
+      'gemini',
+      'cursor',
+      'opencode',
+      'opencode2',
+    ]
     const firstWord = targetCommand.trim().split(/\s+/)[0].toLowerCase()
     for (const agent of prohibited) {
       if (firstWord === agent || firstWord.endsWith(`/${agent}`)) {

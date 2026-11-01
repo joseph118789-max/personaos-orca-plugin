@@ -378,6 +378,7 @@
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('workers', event)">Workers</button>
     <button class="tab-btn" onclick="switchTab('tasks', event)">Tasks</button>
+    <button class="tab-btn" onclick="switchTab('orchestrator', event)">Orchestrator</button>
     <button class="tab-btn" onclick="switchTab('dispatch', event)">New Task</button>
     <button class="tab-btn" onclick="switchTab('reviews', event)">Reviews</button>
   </div>
@@ -421,11 +422,46 @@
           <option value="critical">Critical</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>Dependencies (Optional Task IDs, comma-separated)</label>
+        <input type="text" id="task-deps" placeholder="e.g. task-uuid-1, task-uuid-2" />
+      </div>
+      <div class="form-group">
+        <label>Coordination Run ID (Optional)</label>
+        <input type="text" id="task-run-id" placeholder="e.g. run-uuid or run_legacy_local" />
+      </div>
       <div style="display:flex;gap:6px;margin-top:10px;">
         <button class="btn" style="flex:1" onclick="submitTask()">Dispatch Task</button>
         <button class="btn btn-secondary" style="flex:1" onclick="copyTaskCurlCommand()">Copy as CLI Command</button>
       </div>
     </div>
+  </div>
+
+  <!-- Orchestration Tab (ADR 0040) -->
+  <div id="tab-orchestrator" class="tab-content">
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">Orca Orchestration & DAG Bridge</span>
+        <span class="status-tag idle">ADR 0040</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+        Visual workspace coordination layer for PersonaOS. PersonaOS determines DAG readiness and review authorization; Orca projects the active runs, dependencies, and decision gates.
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-secondary" onclick="loadOrchestrationData()">Refresh DAG</button>
+        <button class="btn btn-sm btn-secondary" onclick="copyOrcaRunCreateCommand()">Copy `run-create` CLI</button>
+      </div>
+    </div>
+
+    <div style="font-weight:600;font-size:12px;margin:12px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+      Task DAGs & Ready Waves
+    </div>
+    <div id="orchestrator-dag-list">Loading DAG projection...</div>
+
+    <div style="font-weight:600;font-size:12px;margin:16px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+      Interactive Decision Gates (HITL)
+    </div>
+    <div id="orchestrator-gates-list">Loading decision gates...</div>
   </div>
 
   <!-- Reviews Tab -->
@@ -743,6 +779,7 @@
       if (el) el.classList.add('active');
       if (name === 'workers') loadWorkers();
       if (name === 'tasks') loadTasks();
+      if (name === 'orchestrator') loadOrchestrationData();
       if (name === 'reviews') loadReviews();
     }
 
@@ -1001,11 +1038,103 @@
       }
     }
 
+    function copyOrcaRunCreateCommand() {
+      var cmd = `orca orchestration run-create --objective "Multi-worker feature coordination" --json`;
+      copyToClipboard(cmd, 'Orca run-create command copied!');
+    }
+
+    async function loadOrchestrationData() {
+      var dagContainer = document.getElementById('orchestrator-dag-list');
+      var gatesContainer = document.getElementById('orchestrator-gates-list');
+      if (!dagContainer || !gatesContainer) return;
+
+      try {
+        var res = await apiFetch('/tasks');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        var tasks = Array.isArray(data) ? data : (data.tasks || []);
+
+        if (tasks.length === 0) {
+          dagContainer.innerHTML = '<div class="card" style="color:var(--text-muted)">No active tasks in DAG. Dispatch a task with dependencies to compose a workflow.</div>';
+          gatesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:12px;">No active decision gates.</div>';
+          return;
+        }
+
+        // Render DAG nodes
+        dagContainer.innerHTML = tasks.map(function(t) {
+          var deps = t.dependencies || (t.input && t.input.dependencies) || [];
+          var depsHtml = deps.length > 0 
+            ? deps.map(function(d) { return `<span class="badge" style="font-size:10px;margin-right:4px;">dep: ${String(d).slice(0, 8)}</span>`; }).join('')
+            : '<span style="font-size:11px;color:var(--text-muted)">Root Task (Ready)</span>';
+
+          var isReady = deps.length === 0 || t.status === 'running' || t.status === 'completed';
+          var readyBadge = isReady ? '<span class="status-tag idle" style="font-size:9px;">Ready Wave</span>' : '<span class="status-tag pending" style="font-size:9px;">Blocked</span>';
+
+          return `
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">${t.title || t.id.slice(0, 8)}</span>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  ${readyBadge}
+                  <span class="status-tag ${t.status}">${t.status}</span>
+                </div>
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">${t.objective || ''}</div>
+              <div class="meta-row" style="margin-bottom:6px;">
+                <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
+                <span>Task ID: ${t.id.slice(0, 8)}</span>
+                <span>Gen: ${t.generation || t.execution_generation || 1}</span>
+              </div>
+              <div style="font-size:11px;padding-top:4px;border-top:1px dashed var(--border);">
+                Dependencies: ${depsHtml}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Render Decision Gates (tasks in review status)
+        var reviewTasks = tasks.filter(function(t) { return t.status === 'review'; });
+        if (reviewTasks.length === 0) {
+          gatesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:12px;">All decision gates resolved. No tasks blocking on review.</div>';
+        } else {
+          gatesContainer.innerHTML = reviewTasks.map(function(t) {
+            var gen = t.generation || t.execution_generation || 1;
+            return `
+              <div class="card" style="border-left: 3px solid var(--warning);">
+                <div class="card-header">
+                  <span class="card-title">Gate: ${t.title || t.id.slice(0, 8)}</span>
+                  <span class="status-tag review">Requires Decision</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">
+                  Worker execution completed with diagnostic findings requiring human review before downstream tasks proceed.
+                </div>
+                <div class="meta-row" style="margin-bottom:10px;">
+                  <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
+                  <span>Task ID: ${t.id}</span>
+                  <span>Generation Fence: ${gen}</span>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button class="btn btn-sm btn-success" style="flex:1" onclick="approveTask('${t.id}', ${gen})">Resolve & Approve</button>
+                  <button class="btn btn-sm btn-danger" style="flex:1" onclick="rejectTask('${t.id}', ${gen})">Reject Gate</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        dagContainer.innerHTML = `<div class="card" style="color:var(--danger)">Failed to load DAG: ${e.message}</div>`;
+        gatesContainer.innerHTML = `<div class="card" style="color:var(--danger)">Failed to load gates: ${e.message}</div>`;
+      }
+    }
+
     async function submitTask() {
       const workerId = document.getElementById('task-worker').value;
       const title = document.getElementById('task-title').value.trim();
       const objective = document.getElementById('task-objective').value.trim();
       const priority = document.getElementById('task-priority').value;
+      const rawDeps = document.getElementById('task-deps') ? document.getElementById('task-deps').value.trim() : '';
+      const deps = rawDeps ? rawDeps.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const runId = document.getElementById('task-run-id') ? document.getElementById('task-run-id').value.trim() : '';
 
       if (!title || !objective) {
         alert('Please provide a task title and objective.');
@@ -1013,21 +1142,27 @@
       }
 
       try {
+        const bodyPayload = {
+          worker_id: workerId,
+          title: title,
+          objective: objective,
+          priority: priority,
+          dependencies: deps,
+          input: runId ? { run_id: runId } : {}
+        };
+
         const res = await apiFetch('/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            worker_id: workerId,
-            title: title,
-            objective: objective,
-            priority: priority
-          })
+          body: JSON.stringify(bodyPayload)
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Task dispatched successfully!');
+        showToast('Task dispatched successfully with DAG context!');
         document.getElementById('task-title').value = '';
         document.getElementById('task-objective').value = '';
-        switchTab('tasks');
+        if (document.getElementById('task-deps')) document.getElementById('task-deps').value = '';
+        if (document.getElementById('task-run-id')) document.getElementById('task-run-id').value = '';
+        switchTab('orchestrator');
       } catch (e) {
         // Fallback to CLI command generation
         copyTaskCurlCommand();
@@ -1048,6 +1183,7 @@
       var activeTab = document.querySelector('.tab-content.active');
       if (activeTab && activeTab.id === 'tab-workers' && !isCspRestricted) loadWorkers();
       if (activeTab && activeTab.id === 'tab-tasks' && !isCspRestricted) loadTasks();
+      if (activeTab && activeTab.id === 'tab-orchestrator' && !isCspRestricted) loadOrchestrationData();
       if (activeTab && activeTab.id === 'tab-reviews' && !isCspRestricted) loadReviews();
     }, 8000);
   </script>
