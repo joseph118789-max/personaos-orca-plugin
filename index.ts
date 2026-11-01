@@ -10,8 +10,12 @@
 
 export * from './contracts'
 import type {
+  GatewayDagProjection,
   GatewayDiagnosticsResponse,
   GatewayHealthResponse,
+  GatewayReadyWavesResponse,
+  GatewayRunCreateRequest,
+  GatewayRunSummary,
   GatewayWorkerSummary,
 } from './contracts'
 
@@ -216,6 +220,64 @@ export class PersonaOSOrcaPluginClient {
     }
 
     return (await res.json()) as { id: string; status: string }
+  }
+
+  /**
+   * List active external coordination runs (ADR 0040 / ADR 0041).
+   */
+  async listRuns(): Promise<GatewayRunSummary[]> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to list coordination runs: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayRunSummary[]
+  }
+
+  /**
+   * Create or register an external coordination run.
+   */
+  async createRun(req: GatewayRunCreateRequest): Promise<GatewayRunSummary> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(req),
+    })
+    if (!res.ok) {
+      const errText = await res.text()
+      throw new Error(`Failed to create coordination run: ${res.status} ${errText}`)
+    }
+    return (await res.json()) as GatewayRunSummary
+  }
+
+  /**
+   * Fetch pre-evaluated directed acyclic graph (DAG) projection for a coordination run.
+   */
+  async getRunDag(runId = 'default'): Promise<GatewayDagProjection> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs/${encodeURIComponent(runId)}/dag`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to fetch DAG for run ${runId}: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayDagProjection
+  }
+
+  /**
+   * Fetch ready-to-execute tasks grouped by topological wave.
+   */
+  async getReadyWaves(runId = 'default'): Promise<GatewayReadyWavesResponse> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/runs/${encodeURIComponent(runId)}/ready-waves`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to fetch ready waves for run ${runId}: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayReadyWavesResponse
   }
 
   /**

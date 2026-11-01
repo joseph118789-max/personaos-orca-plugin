@@ -454,10 +454,16 @@
       </div>
     </div>
 
-    <div style="font-weight:600;font-size:12px;margin:12px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
-      Task DAGs & Ready Waves
+    <div style="font-weight:600;font-size:12px;margin:12px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center;">
+      <span>Task DAG Projection</span>
+      <span id="dag-summary-stats" style="font-size:10px;font-weight:normal;color:var(--text-muted);"></span>
     </div>
     <div id="orchestrator-dag-list">Loading DAG projection...</div>
+
+    <div style="font-weight:600;font-size:12px;margin:16px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+      Ready Execution Waves
+    </div>
+    <div id="orchestrator-waves-list">Loading ready waves...</div>
 
     <div style="font-weight:600;font-size:12px;margin:16px 0 6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
       Interactive Decision Gates (HITL)
@@ -1249,77 +1255,164 @@
 
     async function loadOrchestrationData() {
       var dagContainer = document.getElementById('orchestrator-dag-list');
+      var wavesContainer = document.getElementById('orchestrator-waves-list');
       var gatesContainer = document.getElementById('orchestrator-gates-list');
+      var statsSpan = document.getElementById('dag-summary-stats');
       if (!dagContainer || !gatesContainer) return;
 
       try {
-        var res = await apiFetch('/tasks');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var data = await res.json();
-        var tasks = Array.isArray(data) ? data : (data.tasks || []);
+        // 1. Fetch evaluated DAG projection from Gateway
+        let dagData;
+        try {
+          var dagRes = await apiFetch('/integration/runs/default/dag');
+          if (dagRes.ok) {
+            dagData = await dagRes.json();
+          }
+        } catch (_) {}
 
-        if (tasks.length === 0) {
-          dagContainer.innerHTML = '<div class="card" style="color:var(--text-muted)">No active tasks in DAG. Dispatch a task with dependencies to compose a workflow.</div>';
-          gatesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:12px;">No active decision gates.</div>';
-          return;
+        // 2. Fetch ready waves from Gateway
+        let wavesData;
+        try {
+          var wavesRes = await apiFetch('/integration/runs/default/ready-waves');
+          if (wavesRes.ok) {
+            wavesData = await wavesRes.json();
+          }
+        } catch (_) {}
+
+        // Fallback: if Gateway DAG projection not available, fallback to /tasks
+        var tasks = [];
+        if (!dagData || !dagData.nodes) {
+          var res = await apiFetch('/tasks');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          var rawData = await res.json();
+          tasks = Array.isArray(rawData) ? rawData : (rawData.tasks || []);
+          dagData = {
+            run_id: 'default',
+            nodes: tasks.map(function(t) {
+              return {
+                task_id: t.id,
+                title: t.title || t.id.slice(0, 8),
+                worker_id: t.assigned_worker || t.worker_id,
+                status: t.status,
+                dependencies: t.dependencies || [],
+                wave: 1,
+                generation: t.generation || 1
+              };
+            }),
+            edges: [],
+            total_tasks: tasks.length,
+            completed_tasks: tasks.filter(function(t) { return t.status === 'completed'; }).length,
+            ready_tasks: tasks.filter(function(t) { return t.status === 'queued' || t.status === 'ready'; }).length
+          };
         }
 
-        // Render DAG nodes
-        dagContainer.innerHTML = tasks.map(function(t) {
-          var deps = t.dependencies || (t.input && t.input.dependencies) || [];
-          var depsHtml = deps.length > 0 
-            ? deps.map(function(d) { return `<span class="badge" style="font-size:10px;margin-right:4px;">dep: ${String(d).slice(0, 8)}</span>`; }).join('')
-            : '<span style="font-size:11px;color:var(--text-muted)">Root Task (Ready)</span>';
+        if (statsSpan) {
+          statsSpan.textContent = `Total: ${dagData.total_tasks} · Ready: ${dagData.ready_tasks} · Completed: ${dagData.completed_tasks}`;
+        }
 
-          var isReady = deps.length === 0 || t.status === 'running' || t.status === 'completed';
-          var readyBadge = isReady ? '<span class="status-tag idle" style="font-size:9px;">Ready Wave</span>' : '<span class="status-tag pending" style="font-size:9px;">Blocked</span>';
+        // Render DAG Nodes
+        if (!dagData.nodes || dagData.nodes.length === 0) {
+          dagContainer.innerHTML = '<div class="card" style="color:var(--text-muted)">No active tasks in DAG. Dispatch a task with dependencies to compose a workflow.</div>';
+        } else {
+          dagContainer.innerHTML = dagData.nodes.map(function(n) {
+            var depsHtml = (n.dependencies && n.dependencies.length > 0)
+              ? n.dependencies.map(function(d) {
+                  return `<span class="badge" style="font-size:10px;margin-right:4px;">dep: ${String(d).slice(0, 8)}</span>`;
+                }).join('')
+              : '<span style="font-size:11px;color:var(--text-muted)">Root Task (Ready)</span>';
 
-          return `
-            <div class="card">
-              <div class="card-header">
-                <span class="card-title">${t.title || t.id.slice(0, 8)}</span>
-                <div style="display:flex;gap:4px;align-items:center;">
-                  ${readyBadge}
-                  <span class="status-tag ${t.status}">${t.status}</span>
+            var isReady = (n.dependencies || []).length === 0 || n.status === 'running' || n.status === 'completed';
+            var readyTag = isReady
+              ? '<span class="status-tag idle" style="font-size:9px;">Ready</span>'
+              : '<span class="status-tag pending" style="font-size:9px;">Blocked</span>';
+
+            return `
+              <div class="card">
+                <div class="card-header">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="badge" style="background:var(--info);color:#fff;font-size:9px;font-weight:600;">Wave ${n.wave}</span>
+                    <span class="card-title">${n.title}</span>
+                  </div>
+                  <div style="display:flex;gap:4px;align-items:center;">
+                    ${readyTag}
+                    <span class="status-tag ${n.status}">${n.status}</span>
+                  </div>
+                </div>
+                <div class="meta-row" style="margin:6px 0;">
+                  <span>Worker: <b>${n.worker_id || 'unassigned'}</b></span>
+                  <span>ID: <code>${n.task_id.slice(0, 8)}</code></span>
+                  <span>Gen: <b>${n.generation}</b></span>
+                </div>
+                <div style="font-size:11px;padding-top:4px;border-top:1px dashed var(--border);">
+                  Dependencies: ${depsHtml}
                 </div>
               </div>
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">${t.objective || ''}</div>
-              <div class="meta-row" style="margin-bottom:6px;">
-                <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
-                <span>Task ID: ${t.id.slice(0, 8)}</span>
-                <span>Gen: ${t.generation || t.execution_generation || 1}</span>
-              </div>
-              <div style="font-size:11px;padding-top:4px;border-top:1px dashed var(--border);">
-                Dependencies: ${depsHtml}
-              </div>
-            </div>
-          `;
-        }).join('');
+            `;
+          }).join('');
+        }
+
+        // Render Ready Waves
+        if (wavesContainer) {
+          if (!wavesData || !wavesData.waves || wavesData.waves.length === 0) {
+            wavesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:10px;font-size:12px;">No tasks currently pending in ready waves.</div>';
+          } else {
+            wavesContainer.innerHTML = wavesData.waves.map(function(w) {
+              var tasksList = w.ready_tasks.map(function(rt) {
+                return `
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px dashed var(--border);">
+                    <span style="font-weight:500;">${rt.title}</span>
+                    <div style="display:flex;gap:4px;align-items:center;">
+                      <span class="badge" style="font-size:9px;">${rt.worker_id || 'se'}</span>
+                      <span class="status-tag idle" style="font-size:9px;">${rt.priority}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('');
+
+              var isCurrent = (w.wave_number === wavesData.current_wave);
+              var waveBadge = isCurrent
+                ? '<span class="status-tag running" style="font-size:9px;">Active Wave</span>'
+                : '<span class="status-tag pending" style="font-size:9px;">Next Tier</span>';
+
+              return `
+                <div class="card" style="margin-bottom:8px;${isCurrent ? 'border-left:3px solid var(--success);' : ''}">
+                  <div class="card-header">
+                    <span class="card-title" style="font-size:12px;">Wave ${w.wave_number} (${w.ready_tasks.length} ready tasks)</span>
+                    ${waveBadge}
+                  </div>
+                  <div style="font-size:11px;margin-top:4px;">
+                    ${tasksList}
+                  </div>
+                </div>
+              `;
+            }).join('');
+          }
+        }
 
         // Render Decision Gates (tasks in review status)
-        var reviewTasks = tasks.filter(function(t) { return t.status === 'review'; });
+        var reviewTasks = dagData.nodes.filter(function(t) { return t.status === 'review'; });
         if (reviewTasks.length === 0) {
           gatesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:12px;">All decision gates resolved. No tasks blocking on review.</div>';
         } else {
           gatesContainer.innerHTML = reviewTasks.map(function(t) {
-            var gen = t.generation || t.execution_generation || 1;
+            var gen = t.generation || 1;
             return `
               <div class="card" style="border-left: 3px solid var(--warning);">
                 <div class="card-header">
-                  <span class="card-title">Gate: ${t.title || t.id.slice(0, 8)}</span>
+                  <span class="card-title">Gate: ${t.title || t.task_id.slice(0, 8)}</span>
                   <span class="status-tag review">Requires Decision</span>
                 </div>
                 <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">
                   Worker execution completed with diagnostic findings requiring human review before downstream tasks proceed.
                 </div>
                 <div class="meta-row" style="margin-bottom:10px;">
-                  <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
-                  <span>Task ID: ${t.id}</span>
+                  <span>Worker: ${t.worker_id || 'unassigned'}</span>
+                  <span>Task ID: ${t.task_id}</span>
                   <span>Generation Fence: ${gen}</span>
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button class="btn btn-sm btn-success" style="flex:1" onclick="approveTask('${t.id}', ${gen})">Resolve & Approve</button>
-                  <button class="btn btn-sm btn-danger" style="flex:1" onclick="rejectTask('${t.id}', ${gen})">Reject Gate</button>
+                  <button class="btn btn-sm btn-success" style="flex:1" onclick="approveTask('${t.task_id}', ${gen})">Resolve & Approve</button>
+                  <button class="btn btn-sm btn-danger" style="flex:1" onclick="rejectTask('${t.task_id}', ${gen})">Reject Gate</button>
                 </div>
               </div>
             `;
@@ -1342,6 +1435,11 @@
             </div>
           </div>
         `;
+        if (wavesContainer) {
+          wavesContainer.innerHTML = `
+            <div class="card" style="color:var(--text-muted);text-align:center;padding:10px;font-size:12px;">Ready waves unavailable while offline.</div>
+          `;
+        }
         gatesContainer.innerHTML = `
           <div class="card" style="border-left: 3px solid var(--warning);">
             <div class="card-header">
