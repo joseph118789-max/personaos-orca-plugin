@@ -8,6 +8,8 @@
  * - Strict prohibition on direct external agent CLI execution
  */
 
+export * from './contracts'
+
 export interface PersonaOSWorker {
   id: string
   name: string
