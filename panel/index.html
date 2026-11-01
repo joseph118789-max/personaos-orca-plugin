@@ -1068,6 +1068,14 @@
     // Diagnostics Probe
     async function runDiagnostics() {
       const diagDiv = document.getElementById('diag-results');
+      if (urlInput && urlInput.value) {
+        state.baseUrl = urlInput.value.trim().replace(/\/+$/, '');
+      }
+      if (tokenInput) {
+        state.token = tokenInput.value.trim();
+      }
+      savePrefs();
+
       diagDiv.textContent = `Probing connection to ${state.baseUrl}...`;
       try {
         const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
@@ -1085,7 +1093,7 @@
       } catch (err) {
         diagDiv.innerHTML = `
           <div style="color:var(--accent-red)">Diagnostic probe failed against ${state.baseUrl}: ${err.message}</div>
-          <div style="color:var(--text-muted); margin-top:6px;">Tip: Click "192.168.1.239:8000 (LAN Recommended)" above if connecting across your local network.</div>
+          <div style="color:var(--text-muted); margin-top:6px;">Origin: <code>${window.location.origin || 'null'}</code> | Tip: Ensure the PersonaOS Gateway is running and CORS/PNA allows requests from this origin.</div>
         `;
       }
     }
