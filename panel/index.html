@@ -360,6 +360,7 @@
   <header>
     <div class="title">
       <span>PersonaOS Workforce</span>
+      <span class="badge" id="sse-status-badge" style="display:none;font-size:9px;padding:2px 6px;margin-left:6px;background:var(--success);color:#fff;" title="Real-time Server-Sent Events stream">● LIVE</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px">
       <button class="btn btn-sm btn-success" style="font-size:11px;padding:3px 10px;font-weight:600;" onclick="openAdeModal()" title="Open live ADE Browser in Orca">Open ADE Browser</button>
@@ -745,6 +746,7 @@
       checkHealth().then(function() {
         loadWorkers();
         loadTasks();
+        initSseStream();
       });
     }
 
@@ -1577,16 +1579,101 @@
       }
     }
 
-    // Auto-detect working endpoint on boot, then load boards
+    var sseSource = null;
+    var sseReconnectTimer = null;
+    var sseLastEventId = null;
+
+    function initSseStream() {
+      if (typeof EventSource === 'undefined') return;
+      if (sseSource) {
+        try { sseSource.close(); } catch (_) {}
+        sseSource = null;
+      }
+
+      var sseBadge = document.getElementById('sse-status-badge');
+      var cleanUrl = activeApiBase.replace(/\/+$/, '');
+      var sseUrl = cleanUrl + '/integration/events';
+      if (sseLastEventId) {
+        sseUrl += '?last_event_id=' + encodeURIComponent(sseLastEventId);
+      }
+
+      try {
+        sseSource = new EventSource(sseUrl);
+
+        sseSource.onopen = function() {
+          if (sseBadge) {
+            sseBadge.style.display = 'inline-block';
+            sseBadge.textContent = '● LIVE';
+            sseBadge.style.background = 'var(--success)';
+            sseBadge.title = 'Connected to real-time event stream';
+          }
+        };
+
+        function handleIncomingEvent(evt, type) {
+          if (evt.lastEventId) {
+            sseLastEventId = evt.lastEventId;
+          }
+
+          if (type === 'task_status_changed') {
+            var activeTab = document.querySelector('.tab-content.active');
+            if (activeTab && activeTab.id === 'tab-tasks') loadTasks();
+            if (activeTab && activeTab.id === 'tab-orchestrator') loadOrchestrationData();
+          } else if (type === 'ready_wave_advanced') {
+            loadOrchestrationData();
+          } else if (type === 'gate_created') {
+            showToast('🔔 New HITL Decision Gate requires sign-off!');
+            loadReviews();
+            loadOrchestrationData();
+          } else if (type === 'gate_resolved') {
+            loadReviews();
+            loadOrchestrationData();
+            loadTasks();
+          } else if (type === 'heartbeat') {
+            if (sseBadge) {
+              sseBadge.title = 'Live stream connected. Heartbeat: ' + new Date().toLocaleTimeString();
+            }
+          }
+        }
+
+        sseSource.addEventListener('task_status_changed', function(e) { handleIncomingEvent(e, 'task_status_changed'); });
+        sseSource.addEventListener('ready_wave_advanced', function(e) { handleIncomingEvent(e, 'ready_wave_advanced'); });
+        sseSource.addEventListener('gate_created', function(e) { handleIncomingEvent(e, 'gate_created'); });
+        sseSource.addEventListener('gate_resolved', function(e) { handleIncomingEvent(e, 'gate_resolved'); });
+        sseSource.addEventListener('heartbeat', function(e) { handleIncomingEvent(e, 'heartbeat'); });
+
+        sseSource.onerror = function() {
+          if (sseBadge) {
+            sseBadge.style.display = 'inline-block';
+            sseBadge.textContent = '○ RECONNECTING';
+            sseBadge.style.background = 'var(--warning)';
+          }
+          if (sseSource) {
+            try { sseSource.close(); } catch (_) {}
+            sseSource = null;
+          }
+          if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
+          sseReconnectTimer = setTimeout(initSseStream, 5000);
+        };
+      } catch (err) {
+        if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
+        sseReconnectTimer = setTimeout(initSseStream, 8000);
+      }
+    }
+
+    // Auto-detect working endpoint on boot, then load boards and connect SSE stream
     autoDetectActiveEndpoint().then(function() {
       checkHealth();
       loadWorkers();
       loadTasks();
+      initSseStream();
     });
 
-    // Moderate polling interval (8s) to prevent spamming
+    // Background polling interval: acts as backup when SSE stream is disconnected
     setInterval(function() {
       checkHealth();
+      // If SSE is active and healthy (readyState === 1), skip redundant polling
+      if (sseSource && sseSource.readyState === 1) return;
+
       var activeTab = document.querySelector('.tab-content.active');
       if (activeTab && activeTab.id === 'tab-workers' && !isCspRestricted) loadWorkers();
       if (activeTab && activeTab.id === 'tab-tasks' && !isCspRestricted) loadTasks();

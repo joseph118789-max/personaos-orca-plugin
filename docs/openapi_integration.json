@@ -310,6 +310,39 @@
         "title": "GatewayDiagnosticsResponse",
         "type": "object"
       },
+      "GatewayEventMessage": {
+        "description": "Server-Sent Event message payload.",
+        "properties": {
+          "event_id": {
+            "description": "Unique event identifier",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "Event type: task_status_changed | ready_wave_advanced | gate_created | gate_resolved | heartbeat",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "description": "Event payload data",
+            "title": "Payload",
+            "type": "object"
+          },
+          "timestamp": {
+            "description": "Event timestamp",
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "event_type"
+        ],
+        "title": "GatewayEventMessage",
+        "type": "object"
+      },
       "GatewayGateResolveRequest": {
         "description": "Request payload to resolve an interactive decision gate.",
         "properties": {
@@ -805,6 +838,26 @@
       "get": {
         "description": "Return tasks in review status requiring human-in-the-loop decisions.",
         "operationId": "list_decision_gates_integration_decision_gates_get",
+        "parameters": [
+          {
+            "description": "Filter by coordination run identifier",
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by coordination run identifier",
+              "title": "Run Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -819,6 +872,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Interactive Decision Gates",
@@ -1023,6 +1086,146 @@
         ]
       }
     },
+    "/integration/events": {
+      "get": {
+        "description": "Persistent Server-Sent Events (SSE) stream for real-time task lifecycle, ready waves, and decision gates.",
+        "operationId": "stream_integration_events_integration_events_get",
+        "parameters": [
+          {
+            "description": "Reconnection token fallback",
+            "in": "query",
+            "name": "last_event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reconnection token fallback",
+              "title": "Last Event Id"
+            }
+          },
+          {
+            "description": "Filter events for specific coordination run",
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter events for specific coordination run",
+              "title": "Run Id"
+            }
+          },
+          {
+            "description": "Keepalive heartbeat interval in seconds",
+            "in": "query",
+            "name": "heartbeat_interval",
+            "required": false,
+            "schema": {
+              "default": 15.0,
+              "description": "Keepalive heartbeat interval in seconds",
+              "maximum": 300.0,
+              "minimum": 0.05,
+              "title": "Heartbeat Interval",
+              "type": "number"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Integration Event Stream",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/integration/events/publish": {
+      "post": {
+        "description": "Publish an event message to the SSE event bus for broadcast.",
+        "operationId": "publish_gateway_event_integration_events_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayEventMessage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayEventMessage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Gateway Event",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
     "/integration/health": {
       "get": {
         "description": "Check operational health of the Integration Gateway and upstream connectivity.",
@@ -1201,6 +1404,40 @@
       "get": {
         "description": "Return persistent workers enriched with active profile versions and capabilities.",
         "operationId": "list_integration_workers_integration_workers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1215,6 +1452,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Workforce Roster",

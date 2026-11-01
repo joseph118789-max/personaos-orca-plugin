@@ -13,6 +13,7 @@ import type {
   GatewayDagProjection,
   GatewayDecisionGate,
   GatewayDiagnosticsResponse,
+  GatewayEventMessage,
   GatewayGateResolveRequest,
   GatewayGateResolveResponse,
   GatewayHealthResponse,
@@ -407,6 +408,119 @@ export class PersonaOSOrcaPluginClient {
       throw new Error(`Failed to resolve decision gate ${gateId}: ${res.status} ${errText}`)
     }
     return (await res.json()) as GatewayGateResolveResponse
+  }
+
+  /**
+   * Subscribe to real-time Server-Sent Events (SSE) lifecycle stream (ADR 0041 M6).
+   *
+   * Automatically handles connection, typed message dispatching, heartbeat monitoring,
+   * and reconnects with Last-Event-ID resumption.
+   */
+  subscribeToEvents(options: {
+    onEvent: (event: GatewayEventMessage) => void
+    onError?: (err: Error) => void
+    onConnected?: () => void
+    runId?: string
+    lastEventId?: string
+  }): { close: () => void } {
+    let closed = false
+    let currentLastEventId = options.lastEventId
+    let es: any = null
+    let reconnectTimeout: any = null
+    let backoffMs = 1000
+
+    const connect = () => {
+      if (closed) return
+
+      if (typeof EventSource === 'undefined') {
+        if (options.onError) {
+          options.onError(new Error('EventSource is not supported in this runtime environment'))
+        }
+        return
+      }
+
+      const url = new URL(`${this.apiBaseUrl}/integration/events`)
+      if (options.runId) {
+        url.searchParams.set('run_id', options.runId)
+      }
+      if (currentLastEventId) {
+        url.searchParams.set('last_event_id', currentLastEventId)
+      }
+
+      try {
+        es = new EventSource(url.toString())
+
+        es.onopen = () => {
+          backoffMs = 1000
+          if (options.onConnected) options.onConnected()
+        }
+
+        const handleMsg = (event: any, eventType: string) => {
+          if (event.lastEventId) {
+            currentLastEventId = event.lastEventId
+          }
+          try {
+            const data = JSON.parse(event.data)
+            options.onEvent({
+              event_id: event.lastEventId || data.event_id || 'unknown',
+              event_type: eventType,
+              payload: data.payload || data,
+              timestamp: data.timestamp || new Date().toISOString(),
+            })
+          } catch (_) {
+            options.onEvent({
+              event_id: event.lastEventId || 'heartbeat',
+              event_type: eventType,
+              payload: { raw: event.data },
+              timestamp: new Date().toISOString(),
+            })
+          }
+        }
+
+        es.addEventListener('task_status_changed', (e: any) => handleMsg(e, 'task_status_changed'))
+        es.addEventListener('ready_wave_advanced', (e: any) => handleMsg(e, 'ready_wave_advanced'))
+        es.addEventListener('gate_created', (e: any) => handleMsg(e, 'gate_created'))
+        es.addEventListener('gate_resolved', (e: any) => handleMsg(e, 'gate_resolved'))
+        es.addEventListener('heartbeat', (e: any) => handleMsg(e, 'heartbeat'))
+
+        es.onmessage = (e: any) => {
+          handleMsg(e, 'message')
+        }
+
+        es.onerror = () => {
+          if (es) {
+            es.close()
+            es = null
+          }
+          if (options.onError) {
+            options.onError(new Error('SSE connection interrupted'))
+          }
+          if (!closed) {
+            reconnectTimeout = setTimeout(connect, backoffMs)
+            backoffMs = Math.min(backoffMs * 1.5, 15000)
+          }
+        }
+      } catch (err) {
+        if (options.onError) options.onError(err as Error)
+        if (!closed) {
+          reconnectTimeout = setTimeout(connect, backoffMs)
+          backoffMs = Math.min(backoffMs * 1.5, 15000)
+        }
+      }
+    }
+
+    connect()
+
+    return {
+      close: () => {
+        closed = true
+        if (reconnectTimeout) clearTimeout(reconnectTimeout)
+        if (es) {
+          es.close()
+          es = null
+        }
+      },
+    }
   }
 
   /**
