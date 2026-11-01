@@ -11,7 +11,10 @@
 export * from './contracts'
 import type {
   GatewayDagProjection,
+  GatewayDecisionGate,
   GatewayDiagnosticsResponse,
+  GatewayGateResolveRequest,
+  GatewayGateResolveResponse,
   GatewayHealthResponse,
   GatewayReadyWavesResponse,
   GatewayRunCreateRequest,
@@ -350,6 +353,60 @@ export class PersonaOSOrcaPluginClient {
       throw new Error(`Failed to resolve decision gate for task ${taskId}: ${res.status}`)
     }
     return (await res.json()) as { ok: boolean }
+  }
+
+  /**
+   * List interactive decision gates requiring human review (ADR 0041 M5).
+   */
+  async listDecisionGates(runId?: string): Promise<GatewayDecisionGate[]> {
+    const url = new URL(`${this.apiBaseUrl}/integration/decision-gates`)
+    if (runId) {
+      url.searchParams.set('run_id', runId)
+    }
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to list decision gates: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayDecisionGate[]
+  }
+
+  /**
+   * Get single decision gate details and diagnostic context.
+   */
+  async getDecisionGate(gateId: string): Promise<GatewayDecisionGate> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/decision-gates/${encodeURIComponent(gateId)}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to fetch decision gate ${gateId}: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayDecisionGate
+  }
+
+  /**
+   * Resolve an interactive decision gate with generation-fenced approval or rejection.
+   */
+  async resolveDecisionGate(
+    gateId: string,
+    req: GatewayGateResolveRequest
+  ): Promise<GatewayGateResolveResponse> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/decision-gates/${encodeURIComponent(gateId)}/resolve`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(req),
+    })
+    if (!res.ok) {
+      const errText = await res.text()
+      if (res.status === 409) {
+        throw new Error(`STALE_GENERATION_CONFLICT: ${errText}`)
+      }
+      throw new Error(`Failed to resolve decision gate ${gateId}: ${res.status} ${errText}`)
+    }
+    return (await res.json()) as GatewayGateResolveResponse
   }
 
   /**

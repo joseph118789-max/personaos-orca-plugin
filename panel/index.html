@@ -1156,30 +1156,64 @@
     async function loadReviews() {
       const container = document.getElementById('reviews-list');
       try {
-        const res = await apiFetch('/tasks/review');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const tasks = await res.json();
-        if (!tasks || tasks.length === 0) {
-          container.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:20px;">No tasks currently pending review.</div>';
+        let gates = [];
+        try {
+          const gRes = await apiFetch('/integration/decision-gates');
+          if (gRes.ok) {
+            gates = await gRes.json();
+          }
+        } catch (_) {}
+
+        if (!gates || gates.length === 0) {
+          // Fallback to legacy /tasks/review
+          try {
+            const res = await apiFetch('/tasks/review');
+            if (res.ok) {
+              const legacyTasks = await res.json();
+              gates = (Array.isArray(legacyTasks) ? legacyTasks : []).map(t => ({
+                gate_id: 'gate-' + t.id,
+                task_id: t.id,
+                title: t.title || t.id.slice(0, 8),
+                question: t.objective || 'Task requires human operator review.',
+                options: ['approve', 'reject'],
+                status: 'pending',
+                execution_generation: t.execution_generation || t.generation || 1,
+                review_context: { assigned_worker: t.assigned_worker || t.worker_id }
+              }));
+            }
+          } catch (_) {}
+        }
+
+        if (!gates || gates.length === 0) {
+          container.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:20px;">No decision gates or tasks currently pending review.</div>';
           return;
         }
-        container.innerHTML = tasks.map(t => `
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">${t.title || t.id.slice(0, 8)}</span>
-              <span class="status-tag review">Review</span>
+
+        container.innerHTML = gates.map(g => {
+          const gen = g.execution_generation || 1;
+          const ctx = g.review_context || {};
+          const worker = ctx.assigned_worker || 'unassigned';
+          const findings = ctx.last_error || ctx.findings || '';
+          return `
+            <div class="card" style="border-left: 3px solid var(--warning);">
+              <div class="card-header">
+                <span class="card-title">${g.title || g.gate_id}</span>
+                <span class="status-tag review">Requires Decision</span>
+              </div>
+              <div style="font-size:12px;color:var(--text);margin-bottom:6px">${g.question || 'Human review required before proceeding.'}</div>
+              ${findings ? `<div style="font-size:11px;color:var(--danger);background:rgba(239,68,68,0.1);padding:6px 8px;border-radius:4px;margin-bottom:8px;">${findings}</div>` : ''}
+              <div class="meta-row" style="margin-bottom:10px">
+                <span>Worker: ${worker}</span>
+                <span>Gate ID: <code>${g.gate_id}</code></span>
+                <span>Gen Fence: <b>${gen}</b></span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-success" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'approve', ${gen})">Approve & Continue</button>
+                <button class="btn btn-danger" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'reject', ${gen})">Reject & Abort</button>
+              </div>
             </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${t.objective || ''}</div>
-            <div class="meta-row" style="margin-bottom:10px">
-              <span>Worker: ${t.assigned_worker || t.worker_id || 'unassigned'}</span>
-              <span>Gen: ${t.execution_generation || 1}</span>
-            </div>
-            <div style="display:flex;gap:6px">
-              <button class="btn btn-success" style="flex:1" onclick="approveTask('${t.id}', ${t.execution_generation || 1})">Approve</button>
-              <button class="btn btn-danger" style="flex:1" onclick="rejectTask('${t.id}', ${t.execution_generation || 1})">Reject</button>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       } catch (e) {
         container.innerHTML = `
           <div class="card">
@@ -1197,55 +1231,76 @@
       }
     }
 
-    async function approveTask(taskId, gen) {
-      const reason = prompt('Approval justification (at least 10 chars):', 'Deliverables reviewed and approved for resolution.');
+    async function resolveDecisionGate(gateId, decision, gen) {
+      const defaultNote = (decision === 'approve')
+        ? 'Deliverables reviewed and approved for resolution.'
+        : 'Deliverables did not meet specification.';
+      const promptMsg = (decision === 'approve')
+        ? 'Approval justification (at least 10 chars):'
+        : 'Rejection reason (at least 10 chars):';
+      const reason = prompt(promptMsg, defaultNote);
       if (!reason || reason.trim().length < 10) {
         alert('Reason must be at least 10 characters.');
         return;
       }
+
+      const taskId = gateId.startsWith('gate-') ? gateId.slice(5) : gateId;
+
       try {
-        const res = await apiFetch(`/tasks/${taskId}/approve`, {
+        const payload = {
+          decision: decision,
+          expected_generation: gen,
+          review_notes: reason.trim(),
+          selected_option: decision
+        };
+
+        const res = await apiFetch(`/integration/decision-gates/${encodeURIComponent(gateId)}/resolve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reason: reason.trim(),
-            expected_generation: gen,
-            reset_retries: true
-          })
+          body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Task approved successfully!');
+
+        if (res.status === 409) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.detail || 'STALE_GENERATION_CONFLICT';
+          alert(`⚠️ Stale Decision Gate Conflict:\n\n${errMsg}\n\nThe task was modified or restarted by another process. Refreshing decision gates...`);
+          loadOrchestrationData();
+          loadReviews();
+          loadTasks();
+          return;
+        }
+
+        if (!res.ok) {
+          // If gateway endpoint unavailable, fallback to /tasks/{taskId}/{decision}
+          const fallbackRes = await apiFetch(`/tasks/${taskId}/${decision}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reason: reason.trim(),
+              expected_generation: gen,
+              reset_retries: true
+            })
+          });
+          if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
+        }
+
+        showToast(`Gate ${gateId} ${decision === 'approve' ? 'approved' : 'rejected'} successfully!`);
+        loadOrchestrationData();
         loadReviews();
         loadTasks();
       } catch (e) {
-        var curlCmd = `curl -s -X POST ${activeApiBase}/tasks/${taskId}/approve -H "Content-Type: application/json" -d '{"reason":"${reason.trim()}","expected_generation":${gen},"reset_retries":true}' | jq`;
-        copyToClipboard(curlCmd, 'Approval CLI command copied to clipboard!');
+        alert(`Failed to resolve gate: ${e.message}`);
+        var curlCmd = `curl -s -X POST ${activeApiBase}/integration/decision-gates/${gateId}/resolve -H "Content-Type: application/json" -d '{"decision":"${decision}","expected_generation":${gen},"review_notes":"${reason.trim()}"}' | jq`;
+        copyToClipboard(curlCmd, 'Gate resolution CLI command copied to clipboard!');
       }
     }
 
+    async function approveTask(taskId, gen) {
+      return resolveDecisionGate(`gate-${taskId}`, 'approve', gen);
+    }
+
     async function rejectTask(taskId, gen) {
-      const reason = prompt('Rejection reason (at least 10 chars):', 'Deliverables did not meet specification.');
-      if (!reason || reason.trim().length < 10) {
-        alert('Reason must be at least 10 characters.');
-        return;
-      }
-      try {
-        const res = await apiFetch(`/tasks/${taskId}/reject`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reason: reason.trim(),
-            expected_generation: gen
-          })
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Task rejected.');
-        loadReviews();
-        loadTasks();
-      } catch (e) {
-        var curlCmd = `curl -s -X POST ${activeApiBase}/tasks/${taskId}/reject -H "Content-Type: application/json" -d '{"reason":"${reason.trim()}","expected_generation":${gen}}' | jq`;
-        copyToClipboard(curlCmd, 'Rejection CLI command copied to clipboard!');
-      }
+      return resolveDecisionGate(`gate-${taskId}`, 'reject', gen);
     }
 
     function copyOrcaRunCreateCommand() {
@@ -1389,30 +1444,55 @@
           }
         }
 
-        // Render Decision Gates (tasks in review status)
-        var reviewTasks = dagData.nodes.filter(function(t) { return t.status === 'review'; });
-        if (reviewTasks.length === 0) {
+        // 3. Fetch Interactive Decision Gates from Gateway (ADR 0041 M5)
+        let gatesList = [];
+        try {
+          var gatesRes = await apiFetch('/integration/decision-gates');
+          if (gatesRes.ok) {
+            gatesList = await gatesRes.json();
+          }
+        } catch (_) {}
+
+        // Fallback: map review nodes from DAG if gatesList is empty
+        if ((!gatesList || gatesList.length === 0) && dagData.nodes) {
+          var reviewTasks = dagData.nodes.filter(function(t) { return t.status === 'review'; });
+          gatesList = reviewTasks.map(function(t) {
+            return {
+              gate_id: 'gate-' + t.task_id,
+              task_id: t.task_id,
+              title: t.title || t.task_id.slice(0, 8),
+              question: 'Worker execution paused requiring human review before downstream tasks proceed.',
+              execution_generation: t.generation || 1,
+              review_context: { assigned_worker: t.worker_id }
+            };
+          });
+        }
+
+        if (!gatesList || gatesList.length === 0) {
           gatesContainer.innerHTML = '<div class="card" style="color:var(--text-muted);text-align:center;padding:12px;">All decision gates resolved. No tasks blocking on review.</div>';
         } else {
-          gatesContainer.innerHTML = reviewTasks.map(function(t) {
-            var gen = t.generation || 1;
+          gatesContainer.innerHTML = gatesList.map(function(g) {
+            var gen = g.execution_generation || 1;
+            var ctx = g.review_context || {};
+            var findings = ctx.last_error || ctx.findings || '';
             return `
               <div class="card" style="border-left: 3px solid var(--warning);">
                 <div class="card-header">
-                  <span class="card-title">Gate: ${t.title || t.task_id.slice(0, 8)}</span>
+                  <span class="card-title">Gate: ${g.title || g.gate_id}</span>
                   <span class="status-tag review">Requires Decision</span>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">
-                  Worker execution completed with diagnostic findings requiring human review before downstream tasks proceed.
+                <div style="font-size:12px;color:var(--text);margin-bottom:6px;">
+                  ${g.question || 'Worker execution requires human review before downstream tasks proceed.'}
                 </div>
+                ${findings ? `<div style="font-size:11px;color:var(--danger);background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:4px;margin-bottom:6px;">${findings}</div>` : ''}
                 <div class="meta-row" style="margin-bottom:10px;">
-                  <span>Worker: ${t.worker_id || 'unassigned'}</span>
-                  <span>Task ID: ${t.task_id}</span>
-                  <span>Generation Fence: ${gen}</span>
+                  <span>Worker: ${ctx.assigned_worker || 'unassigned'}</span>
+                  <span>Gate ID: <code>${g.gate_id}</code></span>
+                  <span>Gen Fence: <b>${gen}</b></span>
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button class="btn btn-sm btn-success" style="flex:1" onclick="approveTask('${t.task_id}', ${gen})">Resolve & Approve</button>
-                  <button class="btn btn-sm btn-danger" style="flex:1" onclick="rejectTask('${t.task_id}', ${gen})">Reject Gate</button>
+                  <button class="btn btn-sm btn-success" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'approve', ${gen})">Approve & Continue</button>
+                  <button class="btn btn-sm btn-danger" style="flex:1" onclick="resolveDecisionGate('${g.gate_id}', 'reject', ${gen})">Reject Gate</button>
                 </div>
               </div>
             `;
