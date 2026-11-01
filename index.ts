@@ -9,6 +9,10 @@
  */
 
 export * from './contracts'
+import type {
+  GatewayDiagnosticsResponse,
+  GatewayHealthResponse,
+} from './contracts'
 
 export interface PersonaOSWorker {
   id: string
@@ -116,6 +120,38 @@ export class PersonaOSOrcaPluginClient {
       headers['Authorization'] = `Bearer ${this.token}`
     }
     return headers
+  }
+
+  /**
+   * Run end-to-end connectivity diagnostics against the Integration Gateway (ADR 0041).
+   */
+  async checkDiagnostics(targetUrl?: string): Promise<GatewayDiagnosticsResponse> {
+    const url = new URL(`${this.apiBaseUrl}/integration/diagnostics`)
+    if (targetUrl) {
+      url.searchParams.set('target_url', targetUrl)
+    }
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Diagnostics probe failed: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayDiagnosticsResponse
+  }
+
+  /**
+   * Check Integration Gateway operational health.
+   */
+  async getIntegrationHealth(): Promise<GatewayHealthResponse> {
+    const res = await fetch(`${this.apiBaseUrl}/integration/health`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    })
+    if (!res.ok) {
+      throw new Error(`Gateway health probe failed: ${res.status} ${res.statusText}`)
+    }
+    return (await res.json()) as GatewayHealthResponse
   }
 
   /**

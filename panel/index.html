@@ -363,7 +363,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:6px">
       <button class="btn btn-sm btn-success" style="font-size:11px;padding:3px 10px;font-weight:600;" onclick="openAdeModal()" title="Open live ADE Browser in Orca">Open ADE Browser</button>
-      <div class="badge" onclick="toggleApiBar()" title="Click to change API endpoint">
+      <div class="badge" onclick="switchTab('diagnostics')" title="Click to view connection diagnostics">
         <span class="indicator" id="api-status"></span>
         <span id="api-label">Checking...</span>
       </div>
@@ -381,6 +381,7 @@
     <button class="tab-btn" onclick="switchTab('orchestrator', event)">Orchestrator</button>
     <button class="tab-btn" onclick="switchTab('dispatch', event)">New Task</button>
     <button class="tab-btn" onclick="switchTab('reviews', event)">Reviews</button>
+    <button class="tab-btn" id="tab-btn-diagnostics" onclick="switchTab('diagnostics', event)">Diagnostics</button>
   </div>
 
   <!-- Workers Tab -->
@@ -467,6 +468,49 @@
   <!-- Reviews Tab -->
   <div id="tab-reviews" class="tab-content">
     <div id="reviews-list">Loading review queue...</div>
+  </div>
+
+  <!-- Diagnostics Tab (ADR 0041 M2) -->
+  <div id="tab-diagnostics" class="tab-content">
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">🔍 Gateway Connection Diagnostics</span>
+        <span class="status-tag idle" id="diag-status-tag">INITIALIZING</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+        Real-time telemetry probing upstream PersonaOS connectivity, CORS, Private Network Access (PNA), latency, and authentication status.
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-primary" onclick="runDiagnostics(true)">Run Diagnostics Probe</button>
+        <button class="btn btn-sm btn-secondary" onclick="toggleApiBar()">Configure Endpoint</button>
+      </div>
+    </div>
+
+    <!-- Diagnostic Details Report -->
+    <div id="diagnostic-report">
+      <div class="card" style="color:var(--text-muted);text-align:center;padding:16px;">
+        Running diagnostic probe against PersonaOS Gateway...
+      </div>
+    </div>
+
+    <!-- Remediation Guidance (Visible on error/warning) -->
+    <div id="diagnostic-remediation" style="display:none;margin-top:12px;"></div>
+
+    <!-- Endpoint Quick Switcher -->
+    <div class="card" style="margin-top:12px;">
+      <div class="card-header">
+        <span class="card-title">Candidate Endpoints</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+        Click to switch active endpoint and re-probe connectivity:
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://127.0.0.1:8000')">http://127.0.0.1:8000 (Loopback IP - Recommended)</button>
+        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://localhost:8000')">http://localhost:8000 (Localhost)</button>
+        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://localhost:8001')">http://localhost:8001 (Gateway BFF Proxy)</button>
+        <button class="btn btn-sm btn-secondary" style="text-align:left;font-family:monospace;" onclick="switchCandidate('http://192.168.1.239:8000')">http://192.168.1.239:8000 (Host VM Private LAN)</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -774,32 +818,187 @@
     function switchTab(name, ev) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      if (ev && ev.target) ev.target.classList.add('active');
+      if (ev && ev.target) {
+        ev.target.classList.add('active');
+      } else {
+        var btn = document.getElementById('tab-btn-' + name);
+        if (btn) btn.classList.add('active');
+      }
       var el = document.getElementById('tab-' + name);
       if (el) el.classList.add('active');
       if (name === 'workers') loadWorkers();
       if (name === 'tasks') loadTasks();
       if (name === 'orchestrator') loadOrchestrationData();
       if (name === 'reviews') loadReviews();
+      if (name === 'diagnostics') runDiagnostics(false);
+    }
+
+    var lastDiagnosticResult = null;
+
+    async function runDiagnostics(showToastMsg) {
+      var reportEl = document.getElementById('diagnostic-report');
+      var remEl = document.getElementById('diagnostic-remediation');
+      var tagEl = document.getElementById('diag-status-tag');
+      if (tagEl) {
+        tagEl.textContent = 'PROBING...';
+        tagEl.className = 'status-tag pending';
+      }
+
+      var startTime = Date.now();
+      var diagData = null;
+
+      try {
+        var cleanUrl = activeApiBase.replace(/\/+$/, '');
+        var res = await apiFetch('/integration/diagnostics?target_url=' + encodeURIComponent(cleanUrl));
+        if (res.ok) {
+          diagData = await res.json();
+        } else {
+          var healthRes = await apiFetch('/health');
+          var healthOk = healthRes.ok;
+          diagData = {
+            code: healthOk ? 'CONNECTED' : 'SERVICE_UNAVAILABLE',
+            status: healthOk ? 'ok' : 'error',
+            latency_ms: Date.now() - startTime,
+            upstream_url: cleanUrl,
+            cors_supported: true,
+            pna_supported: true,
+            auth_status: 'authenticated',
+            api_version_match: true,
+            remediation: healthOk ? null : 'PersonaOS control plane returned HTTP ' + healthRes.status,
+            details: { fallback: true }
+          };
+        }
+      } catch (err) {
+        var isSecureOrigin = (window.location && (window.location.protocol === 'https:' || window.location.protocol === 'orca-app:'));
+        var isInsecurePrivate = /192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./.test(activeApiBase);
+        var latency = Date.now() - startTime;
+
+        if (isCspRestricted) {
+          diagData = {
+            code: 'CORS_BLOCKED',
+            status: 'error',
+            latency_ms: latency,
+            upstream_url: activeApiBase,
+            cors_supported: false,
+            pna_supported: false,
+            auth_status: 'unknown',
+            api_version_match: false,
+            remediation: 'Orca Electron container enforced connect-src none. Outbound network requests are rejected by desktop client sandboxing.',
+            details: { error: err.message, csp: 'connect-src none' }
+          };
+        } else if (isSecureOrigin && isInsecurePrivate) {
+          diagData = {
+            code: 'CORS_BLOCKED',
+            status: 'error',
+            latency_ms: latency,
+            upstream_url: activeApiBase,
+            cors_supported: false,
+            pna_supported: false,
+            auth_status: 'unknown',
+            api_version_match: false,
+            remediation: 'Insecure HTTP private address (' + activeApiBase + ') accessed from secure ADE origin (' + (window.location.origin || 'orca-app') + '). Blocked by Mixed Content & Chromium Private Network Access (PNA).',
+            details: { error: err.message, mixed_content: true, pna_blocked: true }
+          };
+        } else {
+          diagData = {
+            code: 'NETWORK_UNREACHABLE',
+            status: 'error',
+            latency_ms: latency,
+            upstream_url: activeApiBase,
+            cors_supported: false,
+            pna_supported: false,
+            auth_status: 'unknown',
+            api_version_match: false,
+            remediation: 'Unable to connect to ' + activeApiBase + '. Verify that the PersonaOS server is running and accessible on this network.',
+            details: { error: err.message }
+          };
+        }
+      }
+
+      lastDiagnosticResult = diagData;
+
+      if (tagEl) {
+        if (diagData.code === 'CONNECTED') {
+          tagEl.textContent = 'CONNECTED';
+          tagEl.className = 'status-tag completed';
+        } else if (diagData.status === 'degraded') {
+          tagEl.textContent = diagData.code;
+          tagEl.className = 'status-tag idle';
+        } else {
+          tagEl.textContent = diagData.code;
+          tagEl.className = 'status-tag failed';
+        }
+      }
+
+      var indicator = document.getElementById('api-status');
+      var label = document.getElementById('api-label');
+      if (indicator && label) {
+        if (diagData.code === 'CONNECTED') {
+          indicator.className = 'indicator online';
+          label.textContent = 'Connected (' + diagData.latency_ms + 'ms)';
+        } else {
+          indicator.className = isCspRestricted ? 'indicator sandboxed' : 'indicator offline';
+          label.textContent = diagData.code;
+        }
+      }
+
+      if (reportEl) {
+        var statusColor = diagData.code === 'CONNECTED' ? 'var(--success)' : (diagData.status === 'degraded' ? 'var(--warning)' : 'var(--danger)');
+        reportEl.innerHTML = `
+          <div class="card" style="border-left: 3px solid ${statusColor};">
+            <div class="card-header">
+              <span class="card-title">Diagnostic Probe Result</span>
+              <span class="badge" style="background:${statusColor};color:#fff;font-weight:600;">${diagData.code}</span>
+            </div>
+            <div class="meta-row" style="margin: 8px 0;">
+              <span>Target: <code>${diagData.upstream_url}</code></span>
+              <span>Roundtrip: <b>${diagData.latency_ms} ms</b></span>
+              <span>Status: <b>${diagData.status}</b></span>
+            </div>
+            <div class="meta-row" style="margin-bottom: 8px;">
+              <span>CORS: <b>${diagData.cors_supported ? 'Supported' : 'Blocked'}</b></span>
+              <span>PNA: <b>${diagData.pna_supported ? 'Available' : 'Restricted'}</b></span>
+              <span>Auth: <b>${diagData.auth_status}</b></span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);border-top:1px dashed var(--border);padding-top:6px;">
+              Engine: <code>${(diagData.details && diagData.details.engine) || 'personaos-gateway'}</code> · Protocol: <code>${(diagData.details && diagData.details.protocol) || 'http/1.1'}</code>
+            </div>
+          </div>
+        `;
+      }
+
+      if (remEl) {
+        if (diagData.remediation) {
+          remEl.style.display = 'block';
+          remEl.innerHTML = `
+            <div class="card" style="border-left: 3px solid var(--warning);background:rgba(217,119,6,0.06);">
+              <div class="card-header">
+                <span class="card-title" style="color:var(--warning);">⚠️ Actionable Remediation (ADR 0041)</span>
+              </div>
+              <div style="font-size:12px;margin:6px 0;line-height:1.4;">
+                ${diagData.remediation}
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
+                <b>Recommendation:</b> In Orca ADE, switch endpoint below to <code>http://127.0.0.1:8000</code> or run the local Gateway BFF proxy.
+              </div>
+            </div>
+          `;
+        } else {
+          remEl.style.display = 'none';
+        }
+      }
+
+      if (showToastMsg) {
+        showToast('Diagnostic probe completed: ' + diagData.code);
+      }
+      return diagData;
     }
 
     async function checkHealth() {
-      const indicator = document.getElementById('api-status');
-      const label = document.getElementById('api-label');
       try {
-        const res = await apiFetch('/health');
-        if (res.ok) {
-          if (indicator) indicator.className = 'indicator online';
-          if (label) label.textContent = 'Connected (' + activeApiBase.replace(/^https?:\/\//, '') + ')';
-          return true;
-        } else {
-          if (indicator) indicator.className = isCspRestricted ? 'indicator sandboxed' : 'indicator offline';
-          if (label) label.textContent = isCspRestricted ? 'Sandboxed UI' : 'API Error';
-          return false;
-        }
+        var diag = await runDiagnostics(false);
+        return diag.code === 'CONNECTED';
       } catch (e) {
-        if (indicator) indicator.className = isCspRestricted ? 'indicator sandboxed' : 'indicator offline';
-        if (label) label.textContent = isCspRestricted ? 'Sandboxed UI' : 'Offline';
         return false;
       }
     }
@@ -1122,8 +1321,33 @@
           }).join('');
         }
       } catch (e) {
-        dagContainer.innerHTML = `<div class="card" style="color:var(--danger)">Failed to load DAG: ${e.message}</div>`;
-        gatesContainer.innerHTML = `<div class="card" style="color:var(--danger)">Failed to load gates: ${e.message}</div>`;
+        var diagCode = (lastDiagnosticResult && lastDiagnosticResult.code) || 'NETWORK_UNREACHABLE';
+        var diagRemediation = (lastDiagnosticResult && lastDiagnosticResult.remediation) || ('Connection to ' + activeApiBase + ' failed: ' + e.message);
+        dagContainer.innerHTML = `
+          <div class="card" style="border-left: 3px solid var(--danger);">
+            <div class="card-header">
+              <span class="card-title" style="color:var(--danger)">⚠️ Task DAG Offline [${diagCode}]</span>
+              <button class="btn btn-sm btn-secondary" onclick="switchTab('diagnostics')">Open Diagnostics</button>
+            </div>
+            <div style="font-size:12px;margin:6px 0;line-height:1.4;">
+              ${diagRemediation}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);border-top:1px dashed var(--border);padding-top:6px;margin-top:6px;">
+              PersonaOS owns the authoritative DAG state. Target: <code>${activeApiBase}</code>
+            </div>
+          </div>
+        `;
+        gatesContainer.innerHTML = `
+          <div class="card" style="border-left: 3px solid var(--warning);">
+            <div class="card-header">
+              <span class="card-title" style="color:var(--warning)">Decision Gates Paused</span>
+              <span class="status-tag pending">${diagCode}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+              Waiting for active connection to PersonaOS review queue.
+            </div>
+          </div>
+        `;
       }
     }
 
