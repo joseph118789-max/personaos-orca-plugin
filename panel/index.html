@@ -15,6 +15,8 @@
       --accent-green: #4ade80;
       --accent-yellow: #facc15;
       --accent-red: #f87171;
+      --accent-orange: #f97316;
+      --accent-purple: #c084fc;
       --border: #475569;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -26,31 +28,33 @@
       color: var(--text-main);
       font-family: var(--font-sans);
       font-size: 13px;
-      line-height: 1.5;
+      line-height: 1.4;
       padding: 12px;
     }
 
     header {
       display: flex;
-      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--border);
       margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     .header-title {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
-    .header-title h1 {
-      font-size: 16px;
+
+    h1 {
+      font-size: 15px;
       font-weight: 600;
       letter-spacing: -0.01em;
     }
+
     .badge {
       display: inline-flex;
       align-items: center;
@@ -61,21 +65,31 @@
       text-transform: uppercase;
       font-family: var(--font-mono);
     }
-    .badge-connected { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
-    .badge-reconnecting { background: rgba(250, 204, 21, 0.2); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
-    .badge-disconnected { background: rgba(248, 113, 113, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+    .badge-connected { background: rgba(74, 222, 128, 0.15); color: var(--accent-green); border: 1px solid rgba(74, 222, 128, 0.3); }
+    .badge-reconnecting { background: rgba(250, 204, 21, 0.15); color: var(--accent-yellow); border: 1px solid rgba(250, 204, 21, 0.3); }
+    .badge-disconnected { background: rgba(248, 113, 113, 0.15); color: var(--accent-red); border: 1px solid rgba(248, 113, 113, 0.3); }
+
+    /* 8 Authoritative Lifecycle States */
+    .state-queued { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #94a3b8; }
+    .state-assigned { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #38bdf8; }
+    .state-in_progress { background: rgba(96, 165, 250, 0.15); color: #60a5fa; border: 1px solid #60a5fa; }
+    .state-blocked { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid #f97316; }
+    .state-review { background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid #facc15; }
+    .state-completed { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid #4ade80; }
+    .state-failed { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid #f87171; }
+    .state-canceled { background: rgba(100, 116, 139, 0.15); color: #64748b; border: 1px solid #64748b; }
 
     .controls-bar {
       display: flex;
+      gap: 6px;
       align-items: center;
-      gap: 8px;
       flex-wrap: wrap;
     }
     input, select, button {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 5px 10px;
+      padding: 4px 8px;
       border-radius: 4px;
       font-size: 12px;
     }
@@ -99,6 +113,7 @@
       gap: 4px;
       border-bottom: 1px solid var(--border);
       margin-bottom: 12px;
+      overflow-x: auto;
     }
     .nav-tab {
       padding: 6px 12px;
@@ -109,6 +124,7 @@
       border-bottom: 2px solid transparent;
       border-radius: 0;
       font-weight: 500;
+      white-space: nowrap;
     }
     .nav-tab.active {
       color: var(--accent-blue);
@@ -173,37 +189,32 @@
       font-weight: 600;
       font-size: 12px;
     }
-    .node-status-completed { color: var(--accent-green); }
-    .node-status-running { color: var(--accent-blue); }
-    .node-status-review { color: var(--accent-yellow); }
-    .node-status-failed { color: var(--accent-red); }
 
     .events-log {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      background: #020617;
+      background: #090d16;
       border: 1px solid var(--border);
       border-radius: 4px;
       padding: 8px;
-      height: 280px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      height: 220px;
       overflow-y: auto;
       display: flex;
       flex-direction: column-reverse;
       gap: 4px;
     }
     .event-entry {
-      padding: 4px 6px;
-      border-radius: 3px;
-      border-left: 3px solid var(--border);
-      background: rgba(30, 41, 59, 0.6);
-      white-space: pre-wrap;
+      padding: 3px 6px;
+      border-left: 2px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 2px;
       word-break: break-all;
     }
     .event-entry.heartbeat { border-left-color: var(--text-muted); color: var(--text-muted); }
     .event-entry.task_status_changed { border-left-color: var(--accent-blue); }
     .event-entry.ready_wave_advanced { border-left-color: var(--accent-green); }
     .event-entry.gate_created { border-left-color: var(--accent-yellow); }
-    .event-entry.gate_resolved { border-left-color: #c084fc; }
+    .event-entry.gate_resolved { border-left-color: var(--accent-purple); }
 
     .banner-warning {
       background: rgba(250, 204, 21, 0.1);
@@ -213,6 +224,34 @@
       border-radius: 4px;
       font-size: 11px;
       margin-bottom: 12px;
+    }
+
+    /* Progress bar */
+    .progress-track {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      height: 16px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 6px;
+      margin-bottom: 6px;
+      position: relative;
+    }
+    .progress-fill {
+      background: #38bdf8;
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
   </style>
 </head>
@@ -242,6 +281,9 @@
     <button class="nav-tab" data-tab="tab-dag">Visual DAG & Waves</button>
     <button class="nav-tab" data-tab="tab-gates">Decision Gates (<span id="gates-count">0</span>)</button>
     <button class="nav-tab" data-tab="tab-workers">Workforce Roster</button>
+    <button class="nav-tab" data-tab="tab-submit">Submit Task (Idempotent)</button>
+    <button class="nav-tab" data-tab="tab-sessions">PAB Agent Sessions</button>
+    <button class="nav-tab" data-tab="tab-delegation">Delegation & Results</button>
     <button class="nav-tab" data-tab="tab-diagnostics">Diagnostics</button>
   </nav>
 
@@ -268,7 +310,7 @@
   <div id="tab-dag" class="tab-content">
     <div class="card">
       <div class="card-title">
-        <span>Evaluated Task DAG & Ready Waves</span>
+        <span>Evaluated Task DAG & Ready Waves (8 Lifecycle States)</span>
         <div style="display:flex; gap:6px;">
           <select id="run-select">
             <option value="default">Run: default</option>
@@ -289,7 +331,7 @@
   <div id="tab-gates" class="tab-content">
     <div class="card">
       <div class="card-title">
-        <span>Interactive Decision Gates (Human-in-the-Loop Review Queue)</span>
+        <span>Interactive Decision Gates (Generation-Fenced Review Queue)</span>
         <button id="btn-refresh-gates" style="padding:2px 8px;">Refresh</button>
       </div>
       <div id="gates-container">
@@ -323,15 +365,130 @@
     </div>
   </div>
 
-  <!-- Tab 5: Diagnostics -->
+  <!-- Tab 5: Idempotent Task Submission -->
+  <div id="tab-submit" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>Submit Task (Idempotency & Profile Snapshots - Phase 2)</span>
+      </div>
+      <form id="task-submit-form" style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+          <div>
+            <label style="display:block; font-size:11px; margin-bottom:2px;">Target Worker</label>
+            <select id="task-worker-select" style="width:100%;"></select>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; margin-bottom:2px;">Side-Effect Classification</label>
+            <select id="task-side-effect" style="width:100%;">
+              <option value="UNKNOWN">UNKNOWN</option>
+              <option value="IDEMPOTENT">IDEMPOTENT</option>
+              <option value="HAS_SIDE_EFFECTS">HAS_SIDE_EFFECTS</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; margin-bottom:2px;">Task Title</label>
+          <input type="text" id="task-title-input" placeholder="e.g. Implement user profile endpoint" style="width:100%;" required />
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; margin-bottom:2px;">Task Objective</label>
+          <input type="text" id="task-objective-input" placeholder="Detailed goal specification" style="width:100%;" required />
+        </div>
+        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:8px;">
+          <div>
+            <label style="display:block; font-size:11px; margin-bottom:2px;">Idempotency Key (Auto-generated UUIDv4 if empty)</label>
+            <input type="text" id="task-idempotency-key" placeholder="Auto-generated" style="width:100%; font-family:var(--font-mono);" />
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; margin-bottom:2px;">Pinned Profile Ver</label>
+            <input type="number" id="task-profile-ver" value="1" min="1" style="width:100%;" />
+          </div>
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; margin-bottom:2px;">Dependencies (comma-separated task IDs)</label>
+          <input type="text" id="task-deps-input" placeholder="e.g. task-001, task-002" style="width:100%;" />
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:4px;">
+          <button type="button" id="btn-generate-key">New UUID Key</button>
+          <button type="submit" class="btn-primary">Submit to PersonaOS</button>
+        </div>
+      </form>
+      <div id="submit-result" style="margin-top:8px; font-size:11px; font-family:var(--font-mono);"></div>
+    </div>
+  </div>
+
+  <!-- Tab 6: PAB Agent Sessions -->
+  <div id="tab-sessions" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>PAB Agent Execution Sessions (Provider-Neutral - Phase 4)</span>
+        <button id="btn-refresh-sessions" style="padding:2px 8px;">Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Session ID</th>
+            <th>Task ID</th>
+            <th>Provider</th>
+            <th>Status</th>
+            <th>Tokens</th>
+            <th>Latency</th>
+            <th>Gen</th>
+          </tr>
+        </thead>
+        <tbody id="sessions-table-body">
+          <tr><td colspan="7" style="color:var(--text-muted)">Loading sessions...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 7: Delegation Progress & Results -->
+  <div id="tab-delegation" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>Multi-Agent Delegation Progress & Result Aggregation (Phase 5)</span>
+        <button id="btn-refresh-delegation" style="padding:2px 8px;">Refresh</button>
+      </div>
+      <div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted)">
+          <span>Estimated Progress:</span>
+          <span id="delegation-pct-label">0%</span>
+        </div>
+        <div class="progress-track">
+          <div id="delegation-progress-bar" class="progress-fill" style="width:0%;"></div>
+          <div id="delegation-progress-text" class="progress-text">0 / 0 Completed</div>
+        </div>
+      </div>
+      <div id="delegation-stats" style="margin: 8px 0; font-size:11px; display:flex; gap:12px; flex-wrap:wrap;"></div>
+      <h3 style="font-size:12px; margin: 10px 0 6px 0; color:var(--accent-blue)">Child Task Results</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Task ID</th>
+            <th>Title</th>
+            <th>Worker</th>
+            <th>Status</th>
+            <th>Gen</th>
+            <th>Completed At</th>
+          </tr>
+        </thead>
+        <tbody id="results-table-body">
+          <tr><td colspan="6" style="color:var(--text-muted)">No delegation results loaded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 8: Diagnostics -->
   <div id="tab-diagnostics" class="tab-content">
     <div class="card">
       <div class="card-title">
-        <span>Connection & Security Boundary Diagnostics</span>
-        <button id="btn-run-full-diag" class="btn-primary" style="padding:2px 8px;">Execute Probe</button>
+        <span>Connection & Security Boundary Diagnostics (ADR 0041 M2)</span>
+        <button id="btn-run-full-diag" style="padding:2px 8px;">Run Diagnostic Probe</button>
       </div>
-      <div id="diag-results" style="font-family:var(--font-mono); font-size:12px;">
-        Click 'Execute Probe' to inspect CORS, PNA, Auth, Latency, and API version match.
+      <div id="diag-results" style="font-family:var(--font-mono); font-size:11px; line-height:1.6;">
+        Click "Run Diagnostic Probe" to test backend liveliness, PNA/CORS status, and database connectivity.
       </div>
     </div>
   </div>
@@ -346,9 +503,6 @@
       connected: false,
       sseReader: null,
       abortController: null,
-      retryDelayMs: 2000,
-      backoffMultiplier: 1.5,
-      maxRetryDelayMs: 30000,
     };
 
     // DOM Elements
@@ -373,6 +527,8 @@
         if (target === 'tab-workers') loadWorkers();
         if (target === 'tab-dag') loadDag();
         if (target === 'tab-gates') loadGates();
+        if (target === 'tab-sessions') loadSessions();
+        if (target === 'tab-delegation') loadDelegation();
       });
     });
 
@@ -385,7 +541,7 @@
       eventsLog.prepend(entry);
     }
 
-    function setConnectionStatus(status, errText) {
+    function setConnectionStatus(status) {
       sseBadge.className = 'badge';
       if (status === 'connected') {
         sseBadge.classList.add('badge-connected');
@@ -405,7 +561,7 @@
       }
     }
 
-    // SSE Connection with auto-reconnection and Last-Event-ID resumption (ADR 0041 M6)
+    // SSE Connection with auto-reconnection and Last-Event-ID resumption
     async function startSSE() {
       if (state.abortController) {
         state.abortController.abort();
@@ -423,12 +579,8 @@
       const streamUrl = `${base}/integration/events?${queryParts.join('&')}`;
 
       const headers = { 'Accept': 'text/event-stream' };
-      if (state.token) {
-        headers['Authorization'] = `Bearer ${state.token}`;
-      }
-      if (state.lastEventId) {
-        headers['Last-Event-ID'] = state.lastEventId;
-      }
+      if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+      if (state.lastEventId) headers['Last-Event-ID'] = state.lastEventId;
 
       setConnectionStatus('reconnecting');
 
@@ -438,9 +590,7 @@
           signal: state.abortController.signal,
         });
 
-        if (!response.ok) {
-          throw new Error(`SSE stream HTTP error: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
 
         setConnectionStatus('connected');
         state.reconnectCount = 0;
@@ -462,7 +612,6 @@
 
           for (const line of lines) {
             if (line === '') {
-              // End of message frame
               if (currentData.length > 0 || currentEventType === 'heartbeat') {
                 const raw = currentData.join('\n');
                 let parsed = {};
@@ -478,9 +627,9 @@
 
                 logEvent(currentEventType, payload, currentEventId);
 
-                // Auto-refresh tabs on lifecycle transitions
                 if (currentEventType === 'task_status_changed' || currentEventType === 'ready_wave_advanced') {
                   loadDag();
+                  loadDelegation();
                 } else if (currentEventType === 'gate_created' || currentEventType === 'gate_resolved') {
                   loadGates();
                   loadDag();
@@ -501,31 +650,15 @@
               currentEventType = line.substring(6).trim();
             } else if (line.startsWith('data:')) {
               currentData.push(line.substring(5).trim());
-            } else if (line.startsWith('retry:')) {
-              const r = parseInt(line.substring(6).trim(), 10);
-              if (!isNaN(r)) state.retryDelayMs = r;
             }
           }
         }
-        scheduleReconnect(new Error('Stream closed by server'));
       } catch (err) {
         if (err.name === 'AbortError') return;
-        scheduleReconnect(err);
+        setConnectionStatus('disconnected');
+        state.reconnectCount++;
+        setTimeout(startSSE, 3000);
       }
-    }
-
-    function scheduleReconnect(err) {
-      setConnectionStatus('reconnecting', err.message);
-      state.reconnectCount++;
-      const expDelay = Math.min(state.retryDelayMs * Math.pow(state.backoffMultiplier, state.reconnectCount), state.maxRetryDelayMs);
-      const delay = Math.round(expDelay * (0.8 + Math.random() * 0.4));
-      logEvent('reconnecting', { attempt: state.reconnectCount, next_retry_ms: delay, error: err.message }, null);
-
-      setTimeout(() => {
-        if (!state.connected) {
-          startSSE();
-        }
-      }, delay);
     }
 
     function disconnectSSE() {
@@ -534,18 +667,20 @@
         state.abortController = null;
       }
       setConnectionStatus('disconnected');
-      logEvent('disconnected', { message: 'Disconnected by operator' }, null);
     }
 
-    // Load Workforce Roster
+    // Load Workers
     async function loadWorkers() {
       const tbody = document.getElementById('workers-table-body');
+      const workerSelect = document.getElementById('task-worker-select');
       try {
         const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
         const res = await fetch(`${state.baseUrl}/integration/workers`, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const workers = await res.json();
         tbody.innerHTML = '';
+        workerSelect.innerHTML = '';
+
         if (workers.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No workers found.</td></tr>';
           return;
@@ -561,6 +696,11 @@
             <td style="font-family:var(--font-mono); font-size:11px;">${(w.capabilities || []).join(', ')}</td>
           `;
           tbody.appendChild(row);
+
+          const opt = document.createElement('option');
+          opt.value = w.id;
+          opt.textContent = `${w.name} (${w.role}) - v${w.current_profile_version}`;
+          workerSelect.appendChild(opt);
         }
       } catch (err) {
         tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent-red)">Failed to load workers: ${err.message}</td></tr>`;
@@ -587,11 +727,11 @@
         for (const n of dag.nodes) {
           const card = document.createElement('div');
           card.className = 'dag-node';
-          const statusCls = `node-status-${n.status}`;
+          const stateBadgeCls = `state-${n.status}`;
           card.innerHTML = `
             <div class="node-header">
               <span>${n.title}</span>
-              <span class="${statusCls}">[${n.status.toUpperCase()}]</span>
+              <span class="badge ${stateBadgeCls}">${n.status.toUpperCase()}</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted)">
               ID: ${n.task_id.substring(0, 8)}... | Worker: ${n.worker_id || 'unassigned'}
@@ -674,6 +814,97 @@
       }
     };
 
+    // Load PAB Sessions
+    async function loadSessions() {
+      const tbody = document.getElementById('sessions-table-body');
+      try {
+        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+        const res = await fetch(`${state.baseUrl}/integration/sessions`, { headers });
+        if (!res.ok) {
+          tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">No active PAB execution sessions found.</td></tr>';
+          return;
+        }
+        const sessions = await res.json();
+        tbody.innerHTML = '';
+        if (sessions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">No active PAB execution sessions found.</td></tr>';
+          return;
+        }
+        for (const s of sessions) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><code>${s.session_id.substring(0, 10)}...</code></td>
+            <td><code>${s.task_id.substring(0, 10)}...</code></td>
+            <td><strong>${s.provider}</strong></td>
+            <td><span class="badge ${s.status === 'active' ? 'badge-connected' : 'badge-reconnecting'}">${s.status}</span></td>
+            <td>${s.metrics?.total_tokens || 0}</td>
+            <td>${s.metrics?.latency_ms || 0}ms</td>
+            <td>Gen ${s.generation}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">Sessions endpoint not registered or no active runtimes.</td></tr>';
+      }
+    }
+
+    // Load Delegation & Results
+    async function loadDelegation() {
+      const runId = document.getElementById('run-select').value || 'default';
+      const pctLabel = document.getElementById('delegation-pct-label');
+      const bar = document.getElementById('delegation-progress-bar');
+      const barText = document.getElementById('delegation-progress-text');
+      const stats = document.getElementById('delegation-stats');
+      const tbody = document.getElementById('results-table-body');
+
+      try {
+        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+        const res = await fetch(`${state.baseUrl}/integration/runs/${runId}/dag`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const dag = await res.json();
+
+        const total = dag.nodes.length;
+        const completed = dag.nodes.filter(n => n.status === 'completed').length;
+        const failed = dag.nodes.filter(n => n.status === 'failed').length;
+        const review = dag.nodes.filter(n => n.status === 'review').length;
+        const blocked = dag.nodes.filter(n => n.status === 'blocked').length;
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        pctLabel.textContent = `${pct}%`;
+        bar.style.width = `${pct}%`;
+        barText.textContent = `${completed} / ${total} Completed`;
+
+        stats.innerHTML = `
+          <span>Total: <strong>${total}</strong></span>
+          <span style="color:var(--accent-green)">Completed: <strong>${completed}</strong></span>
+          <span style="color:var(--accent-red)">Failed: <strong>${failed}</strong></span>
+          <span style="color:var(--accent-yellow)">Review: <strong>${review}</strong></span>
+          <span style="color:var(--accent-orange)">Blocked: <strong>${blocked}</strong></span>
+        `;
+
+        tbody.innerHTML = '';
+        if (dag.nodes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No delegation results loaded.</td></tr>';
+          return;
+        }
+
+        for (const n of dag.nodes) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><code>${n.task_id.substring(0, 10)}...</code></td>
+            <td>${n.title}</td>
+            <td>${n.worker_id || 'unassigned'}</td>
+            <td><span class="badge state-${n.status}">${n.status}</span></td>
+            <td>Gen ${n.generation}</td>
+            <td>${n.status === 'completed' ? 'Finalized' : 'In Progress'}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent-red)">Failed to load delegation results: ${err.message}</td></tr>`;
+      }
+    }
+
     // Diagnostics Probe
     async function runDiagnostics() {
       const diagDiv = document.getElementById('diag-results');
@@ -696,6 +927,63 @@
       }
     }
 
+    // Task Submission Form Handler
+    document.getElementById('btn-generate-key').addEventListener('click', () => {
+      document.getElementById('task-idempotency-key').value = crypto.randomUUID();
+    });
+
+    document.getElementById('task-submit-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const resultDiv = document.getElementById('submit-result');
+      resultDiv.textContent = 'Submitting task to PersonaOS...';
+
+      const workerId = document.getElementById('task-worker-select').value;
+      const title = document.getElementById('task-title-input').value;
+      const objective = document.getElementById('task-objective-input').value;
+      const key = document.getElementById('task-idempotency-key').value || crypto.randomUUID();
+      const sideEffect = document.getElementById('task-side-effect').value;
+      const profileVer = parseInt(document.getElementById('task-profile-ver').value, 10) || 1;
+      const rawDeps = document.getElementById('task-deps-input').value;
+      const deps = rawDeps ? rawDeps.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+      const payload = {
+        worker_id: workerId,
+        title,
+        objective,
+        dependencies: deps,
+        idempotency_key: key,
+        correlation_id: `corr-${Date.now()}`,
+        side_effect_classification: sideEffect,
+        profile_version: profileVer,
+      };
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        };
+        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+
+        const res = await fetch(`${state.baseUrl}/tasks`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errText}`);
+        }
+
+        const data = await res.json();
+        resultDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Task enqueued successfully: ID <strong>${data.id}</strong> (Status: ${data.status}, IdempotencyKey: ${key})</span>`;
+        loadDag();
+        loadDelegation();
+      } catch (err) {
+        resultDiv.innerHTML = `<span style="color:var(--accent-red)">✗ Task submission failed: ${err.message}</span>`;
+      }
+    });
+
     // Button event listeners
     document.getElementById('btn-reconnect').addEventListener('click', () => startSSE());
     document.getElementById('btn-disconnect').addEventListener('click', () => disconnectSSE());
@@ -708,9 +996,12 @@
     document.getElementById('btn-refresh-workers').addEventListener('click', () => loadWorkers());
     document.getElementById('btn-refresh-dag').addEventListener('click', () => loadDag());
     document.getElementById('btn-refresh-gates').addEventListener('click', () => loadGates());
+    document.getElementById('btn-refresh-sessions').addEventListener('click', () => loadSessions());
+    document.getElementById('btn-refresh-delegation').addEventListener('click', () => loadDelegation());
 
     // Auto-start on load
     window.addEventListener('DOMContentLoaded', () => {
+      loadWorkers();
       startSSE();
     });
   </script>

@@ -6,7 +6,8 @@
   "types": "contracts.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npm run build && node --test dist/tests/**/*.test.js"
   },
   "repository": {
     "type": "git",

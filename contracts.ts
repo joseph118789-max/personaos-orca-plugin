@@ -9,7 +9,12 @@
  * - All communication flows through the Gateway (Option B/C BFF).
  * - Zero Shadow State: The Gateway maintains no independent queue or scheduler.
  * - Generation Fencing: Gate resolution must supply expected_generation.
+ * - Zero Direct Agent Execution: Orca UI and ADE never execute raw agent CLIs.
  */
+
+// ============================================================================
+// Phase 1: Gateway Diagnostics & Connectivity Contracts
+// ============================================================================
 
 /**
  * Structured diagnostic classification codes for ADE <-> PersonaOS connectivity.
@@ -53,6 +58,92 @@ export interface GatewayDiagnosticsResponse {
   details?: Record<string, unknown>
 }
 
+// ============================================================================
+// Phase 2: Task Submission, Idempotency & Profile Snapshot Contracts
+// ============================================================================
+
+export type SideEffectClassification = 'UNKNOWN' | 'IDEMPOTENT' | 'HAS_SIDE_EFFECTS'
+
+/**
+ * Immutable worker profile snapshot pinned at task submission time.
+ */
+export interface WorkerProfileSnapshot {
+  profileId: string
+  profileVersion: number
+  requiredSkills: string[]
+  profileSnapshotRef?: string
+}
+
+/**
+ * Options for idempotent task submission to PersonaOS.
+ */
+export interface TaskSubmitOptions {
+  workerId: string
+  title: string
+  objective: string
+  worktreePath?: string
+  worktreeId?: string
+  branch?: string
+  dependencies?: string[]
+  runId?: string
+  inputData?: Record<string, unknown>
+  idempotencyKey?: string
+  correlationId?: string
+  sideEffectClassification?: SideEffectClassification
+  profileSnapshot?: WorkerProfileSnapshot
+}
+
+export interface TaskSubmitResponse {
+  id: string
+  status: string
+  idempotency_key?: string
+  correlation_id?: string
+  profile_version?: number
+  created_at?: string
+}
+
+// ============================================================================
+// Phase 3: DAG, Ready Waves & Task Hierarchy Contracts
+// ============================================================================
+
+/**
+ * All 8 distinct PersonaOS authoritative lifecycle states.
+ */
+export type TaskLifecycleStatus =
+  | 'queued'
+  | 'assigned'
+  | 'in_progress'
+  | 'blocked'
+  | 'review'
+  | 'completed'
+  | 'failed'
+  | 'canceled'
+
+export interface TaskStatusInfo {
+  rawStatus: TaskLifecycleStatus
+  displayLabel: string
+  color: string
+  isTerminal: boolean
+  isActive: boolean
+  isBlocked: boolean
+  requiresReview: boolean
+}
+
+/**
+ * Node in the parent/child task hierarchy.
+ */
+export interface TaskHierarchyNode {
+  task_id: string
+  parent_task_id?: string | null
+  title: string
+  worker_id?: string | null
+  status: TaskLifecycleStatus
+  generation: number
+  dependencies: string[]
+  children: TaskHierarchyNode[]
+  depth: number
+}
+
 /**
  * Persistent worker summary for Orca ADE workforce roster (/integration/workers).
  */
@@ -67,9 +158,6 @@ export interface GatewayWorkerSummary {
   updated_at?: string | null
 }
 
-/**
- * Request payload to create an external coordination run (POST /integration/runs).
- */
 export interface GatewayRunCreateRequest {
   run_id: string
   objective: string
@@ -77,9 +165,6 @@ export interface GatewayRunCreateRequest {
   metadata?: Record<string, unknown>
 }
 
-/**
- * External coordination run summary (/integration/runs).
- */
 export interface GatewayRunSummary {
   run_id: string
   objective: string
@@ -91,30 +176,22 @@ export interface GatewayRunSummary {
   updated_at?: string | null
 }
 
-/**
- * Projected task node in the orchestration DAG (/integration/runs/{run_id}/dag).
- */
 export interface GatewayDagNode {
   task_id: string
   title: string
   worker_id?: string | null
-  status: 'pending' | 'ready' | 'claimed' | 'running' | 'review' | 'completed' | 'failed' | string
+  status: TaskLifecycleStatus | string
   dependencies: string[]
   wave: number
   generation: number
+  parent_task_id?: string | null
 }
 
-/**
- * Directed dependency edge in the task DAG.
- */
 export interface GatewayDagEdge {
   from: string
   to: string
 }
 
-/**
- * Pre-evaluated DAG projection returned to Orca ADE (/integration/runs/{run_id}/dag).
- */
 export interface GatewayDagProjection {
   run_id: string
   nodes: GatewayDagNode[]
@@ -124,9 +201,6 @@ export interface GatewayDagProjection {
   ready_tasks: number
 }
 
-/**
- * Task ready for execution within a ready wave.
- */
 export interface GatewayReadyTask {
   task_id: string
   title: string
@@ -135,26 +209,102 @@ export interface GatewayReadyTask {
   generation: number
 }
 
-/**
- * Tier of ready tasks whose dependencies are fully resolved.
- */
 export interface GatewayReadyWave {
   wave_number: number
   ready_tasks: GatewayReadyTask[]
 }
 
-/**
- * Evaluated ready waves for an orchestration run (/integration/runs/{run_id}/ready-waves).
- */
 export interface GatewayReadyWavesResponse {
   run_id: string
   current_wave: number
   waves: GatewayReadyWave[]
 }
 
-/**
- * Interactive decision gate (HITL) mapped from a task in review status (/integration/decision-gates).
- */
+// ============================================================================
+// Phase 4: PAB Agent Execution & Session Contracts
+// ============================================================================
+
+export type AgentRuntimeProvider =
+  | 'openclaw'
+  | 'agy'
+  | 'codex'
+  | 'claude'
+  | 'pi'
+  | 'dsh'
+  | string
+
+export interface AgentExecutionSession {
+  session_id: string
+  execution_id: string
+  task_id: string
+  provider: AgentRuntimeProvider
+  agent_id: string
+  agent_profile?: string
+  worktree_id?: string
+  worktree_path?: string
+  status: 'starting' | 'active' | 'suspended' | 'idle' | 'completed' | 'failed' | 'cancelled'
+  started_at: string
+  completed_at?: string | null
+  last_heartbeat?: string | null
+  metrics?: {
+    input_tokens: number
+    output_tokens: number
+    total_tokens: number
+    cost_usd?: number
+    latency_ms?: number
+  }
+  exit_code?: number | null
+  error_message?: string | null
+  exhaustion_reason?: string | null
+  generation: number
+}
+
+export interface TaskCancelRequest {
+  task_id: string
+  expected_generation: number
+  reason?: string
+}
+
+// ============================================================================
+// Phase 5: Delegation Progress & Result Aggregation Contracts
+// ============================================================================
+
+export interface DelegationProgress {
+  parent_task_id: string
+  total_subtasks: number
+  by_status: Record<TaskLifecycleStatus, number>
+  estimated_progress_pct: number
+  is_blocked: boolean
+  has_failures: boolean
+  requires_review: boolean
+  active_workers: string[]
+  active_providers: string[]
+}
+
+export interface ChildTaskResult {
+  task_id: string
+  title: string
+  worker_id?: string | null
+  agent_provider?: string | null
+  status: TaskLifecycleStatus
+  output_summary?: string | null
+  artifacts?: Array<{ name: string; path?: string; uri?: string }>
+  metrics?: { total_tokens: number; latency_ms: number }
+  error_details?: string | null
+  generation: number
+  completed_at?: string | null
+}
+
+export interface AggregatedParentResult {
+  parent_task_id: string
+  run_id?: string
+  status: TaskLifecycleStatus
+  children_results: ChildTaskResult[]
+  consolidated_summary?: string
+  all_succeeded: boolean
+  completed_at?: string | null
+}
+
 export interface GatewayDecisionGate {
   gate_id: string
   task_id: string
@@ -168,9 +318,6 @@ export interface GatewayDecisionGate {
   created_at?: string | null
 }
 
-/**
- * Request payload to resolve an interactive decision gate (POST /integration/decision-gates/{gate_id}/resolve).
- */
 export interface GatewayGateResolveRequest {
   decision: 'approve' | 'reject'
   expected_generation: number
@@ -178,9 +325,6 @@ export interface GatewayGateResolveRequest {
   selected_option?: string | null
 }
 
-/**
- * Response returned upon resolving a decision gate.
- */
 export interface GatewayGateResolveResponse {
   gate_id: string
   task_id: string
@@ -190,12 +334,22 @@ export interface GatewayGateResolveResponse {
   timestamp: string
 }
 
-/**
- * Server-Sent Event message payload (/integration/events).
- */
+// ============================================================================
+// Real-Time SSE Lifecycle Event Contracts
+// ============================================================================
+
+export type GatewayEventType =
+  | 'task_status_changed'
+  | 'ready_wave_advanced'
+  | 'gate_created'
+  | 'gate_resolved'
+  | 'heartbeat'
+  | 'execution_session_updated'
+  | string
+
 export interface GatewayEventMessage {
   event_id: string
-  event_type: 'task_status_changed' | 'ready_wave_advanced' | 'gate_created' | 'gate_resolved' | 'heartbeat' | string
+  event_type: GatewayEventType
   payload: Record<string, unknown>
   timestamp: string
 }
