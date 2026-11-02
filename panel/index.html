@@ -540,18 +540,47 @@
   </div>
 
   <script>
+    function normalizeGatewayUrl(url) {
+      if (!url || typeof url !== 'string') return 'http://192.168.1.239:8000';
+      let clean = url.trim().replace(/\/+$/, '');
+      if (!/^https?:\/\//i.test(clean)) {
+        clean = 'http://' + clean;
+      }
+      // Fix common typo: 127.0.0:port -> 127.0.0.1:port
+      clean = clean.replace(/127\.0\.0:(\d+)/, '127.0.0.1:$1');
+      return clean;
+    }
+
+    function validateGatewayUrl(url) {
+      const norm = normalizeGatewayUrl(url);
+      const match = norm.match(/^https?:\/\/([^:/]+)(?::(\d+))?/);
+      if (match) {
+        const host = match[1];
+        const parts = host.split('.');
+        if (parts.length === 3 && parts.every(p => /^\d+$/.test(p))) {
+          return { valid: false, error: `Malformed IP address "${host}". An IPv4 address must have 4 octets (e.g. 127.0.0.1 or 192.168.1.239).` };
+        }
+      }
+      return { valid: true, url: norm };
+    }
+
     function getInitialGatewayUrl() {
       try {
         const saved = localStorage.getItem('personaos_gateway_url');
-        if (saved && saved.trim()) return saved.trim();
+        if (saved && saved.trim()) {
+          const check = validateGatewayUrl(saved);
+          if (check.valid) return check.url;
+        }
       } catch (e) {}
 
       // If running inside browser with http/https:
       if (window.location.origin && window.location.origin.startsWith('http')) {
-        if (window.location.hostname === 'localhost') {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
           return 'http://127.0.0.1:8000';
         }
-        return window.location.origin;
+        if (window.location.hostname && window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+          return `http://${window.location.hostname}:8000`;
+        }
       }
 
       // Default to LAN IP of PersonaOS Host
@@ -711,10 +740,19 @@
       }
       state.abortController = new AbortController();
 
-      const base = urlInput.value.trim().replace(/\/+$/, '');
-      state.baseUrl = base;
+      const raw = urlInput.value.trim();
+      const check = validateGatewayUrl(raw);
+      if (!check.valid) {
+        logEvent('error', `Invalid Gateway URL: ${check.error}`);
+        setConnectionStatus('disconnected');
+        return;
+      }
+      state.baseUrl = check.url;
+      urlInput.value = check.url;
       state.token = tokenInput.value.trim();
       savePrefs();
+
+      const base = state.baseUrl;
 
       const queryParts = ['heartbeat_interval=10'];
       if (state.lastEventId) {
@@ -1069,7 +1107,16 @@
     async function runDiagnostics() {
       const diagDiv = document.getElementById('diag-results');
       if (urlInput && urlInput.value) {
-        state.baseUrl = urlInput.value.trim().replace(/\/+$/, '');
+        const check = validateGatewayUrl(urlInput.value);
+        if (!check.valid) {
+          diagDiv.innerHTML = `
+            <div style="color:var(--accent-red)"><strong>Invalid Gateway URL:</strong> ${check.error}</div>
+            <div style="margin-top:6px; color:var(--text-muted)">Tip: Click the <strong>"192.168.1.239:8000 (LAN Recommended)"</strong> preset button above.</div>
+          `;
+          return;
+        }
+        state.baseUrl = check.url;
+        urlInput.value = check.url;
       }
       if (tokenInput) {
         state.token = tokenInput.value.trim();
@@ -1091,9 +1138,16 @@
           <div style="margin-top:6px; color:var(--text-muted)">Details: ${JSON.stringify(diag.details)}</div>
         `;
       } catch (err) {
+        const isLocal = state.baseUrl.includes('localhost') || state.baseUrl.includes('127.0.0.1');
         diagDiv.innerHTML = `
           <div style="color:var(--accent-red)">Diagnostic probe failed against ${state.baseUrl}: ${err.message}</div>
-          <div style="color:var(--text-muted); margin-top:6px;">Origin: <code>${window.location.origin || 'null'}</code> | Tip: Ensure the PersonaOS Gateway is running and CORS/PNA allows requests from this origin.</div>
+          ${isLocal ? `
+            <div style="color:var(--accent-yellow); margin-top:8px; padding:6px; background:rgba(255,180,0,0.1); border-radius:4px;">
+              ⚠️ <strong>Network Boundary:</strong> You are accessing Orca ADE remotely. In your browser, <code>localhost</code> / <code>127.0.0.1</code> refers to your local machine, not the PersonaOS host server. Click the <strong>"192.168.1.239:8000 (LAN Recommended)"</strong> preset above.
+            </div>
+          ` : `
+            <div style="color:var(--text-muted); margin-top:6px;">Origin: <code>${window.location.origin || 'null'}</code> | Ensure the PersonaOS Gateway is running and CORS/PNA allows requests from this origin.</div>
+          `}
         `;
       }
     }
