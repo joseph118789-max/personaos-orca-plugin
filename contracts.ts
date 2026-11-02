@@ -353,3 +353,46 @@ export interface GatewayEventMessage {
   payload: Record<string, unknown>
   timestamp: string
 }
+
+// ============================================================================
+// Phase M1: Orca Host Messaging Contracts (ADR 0041)
+// ============================================================================
+
+export type WorkerAction =
+  | 'getHealth'
+  | 'getDiagnostics'
+  | 'getWorkers'
+  | 'submitTask'
+  | 'getDag'
+  | 'getReadyWaves'
+  | 'getDecisionGates'
+  | 'resolveDecisionGate'
+  | 'getExecutionSession'
+  | 'pollEvents'
+  | 'publishEvent'
+
+export interface WorkerMessageRequest<T = unknown> {
+  action: WorkerAction
+  payload?: T
+  correlationId?: string
+}
+
+export interface WorkerMessageResponse<T = unknown> {
+  ok: boolean
+  data?: T
+  error?: string
+  code?: string
+  correlationId?: string
+}
+
+export interface PollEventsPayload {
+  since?: string | number
+  timeoutMs?: number
+}
+
+export interface PollEventsResponse {
+  events: GatewayEventMessage[]
+  lastEventId?: string
+  connected: boolean
+}
+

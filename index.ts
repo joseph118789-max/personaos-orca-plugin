@@ -33,11 +33,16 @@ import {
   GatewayRunCreateRequest,
   GatewayRunSummary,
   GatewayWorkerSummary,
+  PollEventsPayload,
+  PollEventsResponse,
   TaskHierarchyNode,
   TaskLifecycleStatus,
   TaskStatusInfo,
   TaskSubmitOptions,
   TaskSubmitResponse,
+  WorkerAction,
+  WorkerMessageRequest,
+  WorkerMessageResponse,
 } from './contracts.js'
 
 // ============================================================================
@@ -921,9 +926,14 @@ export class PersonaOSOrcaPluginClient {
           errJson = { detail: errText }
         }
 
+        const rawDetail = errJson?.detail
+        const detailMessage = typeof rawDetail === 'object' && rawDetail !== null
+          ? JSON.stringify(rawDetail)
+          : rawDetail
+
         if (res.status === 401 || res.status === 403) {
           throw new AuthenticationError(
-            errJson?.detail || `Authentication failed (${res.status}): ${res.statusText}`,
+            detailMessage || `Authentication failed (${res.status}): ${res.statusText}`,
             res.status,
             errJson
           )
@@ -933,7 +943,7 @@ export class PersonaOSOrcaPluginClient {
           const expected = errJson?.expected_generation ?? 0
           const current = errJson?.current_generation ?? expected + 1
           throw new StaleGenerationError(
-            errJson?.detail || `Conflict (409): Optimistic generation mismatch`,
+            detailMessage || `Conflict (409): Optimistic generation mismatch`,
             expected,
             current,
             errJson
@@ -941,7 +951,7 @@ export class PersonaOSOrcaPluginClient {
         }
 
         throw new PersonaOSGatewayError(
-          errJson?.detail || `Gateway error (${res.status}): ${res.statusText}`,
+          detailMessage || `Gateway error (${res.status}): ${res.statusText}`,
           res.status,
           res.status === 404
             ? ConnectionDiagnosticCode.ENDPOINT_NOT_FOUND
@@ -1026,22 +1036,33 @@ export class PersonaOSOrcaPluginClient {
   }
 
   async submitTask(options: TaskSubmitOptions): Promise<TaskSubmitResponse> {
-    const idempotencyKey = options.idempotencyKey || randomUUID()
-    const correlationId = options.correlationId || `corr-${Date.now()}`
+    const rawOpts = options as any
+    const idempotencyKey = options.idempotencyKey || rawOpts.idempotency_key || randomUUID()
+    const correlationId = options.correlationId || rawOpts.correlation_id || `corr-${Date.now()}`
+    const workerId = options.workerId || rawOpts.worker_id
 
     const headers: Record<string, string> = {
       'Idempotency-Key': idempotencyKey,
       'X-Correlation-ID': correlationId,
     }
 
+    const rawSideEffect = String(options.sideEffectClassification || rawOpts.side_effect_classification || 'UNKNOWN').toUpperCase()
+    let sideEffect = 'UNKNOWN'
+    if (rawSideEffect === 'IDEMPOTENT' || rawSideEffect === 'READ_ONLY') {
+      sideEffect = 'IDEMPOTENT'
+    } else if (rawSideEffect === 'HAS_SIDE_EFFECTS' || rawSideEffect === 'MUTATIVE' || rawSideEffect === 'WRITE') {
+      sideEffect = 'HAS_SIDE_EFFECTS'
+    }
+
     const body: Record<string, unknown> = {
-      worker_id: options.workerId,
+      worker_id: workerId,
       title: options.title,
       objective: options.objective,
       dependencies: options.dependencies || [],
       idempotency_key: idempotencyKey,
       correlation_id: correlationId,
-      side_effect_classification: options.sideEffectClassification || 'UNKNOWN',
+      side_effect_classification: sideEffect,
+      profile_version: options.profileSnapshot?.profileVersion ?? rawOpts.profile_version ?? 1,
       metadata: options.runId ? { run_id: options.runId } : undefined,
       input: {
         ...(options.inputData || {}),
@@ -1300,3 +1321,249 @@ export class PersonaOSOrcaPluginClient {
     }
   }
 }
+
+// ============================================================================
+// Phase M1 & M2: Orca Plugin Worker Runtime Entrypoint
+// ============================================================================
+
+export interface PluginContext {
+  api: { major: number; minor: number }
+  commands: {
+    register: (commandId: string, handler: (args: unknown, context?: { signal?: AbortSignal }) => Promise<unknown>) => { dispose: () => void }
+  }
+  events: {
+    on: (event: string, handler: (payload: unknown) => Promise<unknown> | void) => { dispose: () => void }
+  }
+  host: {
+    call: (method: string, params?: unknown, options?: { signal?: AbortSignal }) => Promise<unknown>
+    has: (method: string) => boolean
+  }
+  grantedCapabilities: readonly string[]
+  log: (message: string) => void
+}
+
+let activeClient: PersonaOSOrcaPluginClient | null = null
+let eventStreamSubscription: EventStreamSubscription | null = null
+const eventRingBuffer: GatewayEventMessage[] = []
+const MAX_RING_BUFFER_SIZE = 1000
+const waitingEventPollers: Array<{
+  since?: string | number
+  resolve: (response: PollEventsResponse) => void
+  timer: NodeJS.Timeout
+}> = []
+
+function pushEventToBuffer(event: GatewayEventMessage) {
+  eventRingBuffer.push(event)
+  if (eventRingBuffer.length > MAX_RING_BUFFER_SIZE) {
+    eventRingBuffer.shift()
+  }
+  while (waitingEventPollers.length > 0) {
+    const poller = waitingEventPollers.shift()
+    if (poller) {
+      clearTimeout(poller.timer)
+      const newEvents = getEventsSince(poller.since)
+      poller.resolve({
+        events: newEvents,
+        lastEventId: eventRingBuffer[eventRingBuffer.length - 1]?.event_id,
+        connected: eventStreamSubscription?.isConnected() ?? false,
+      })
+    }
+  }
+}
+
+function getEventsSince(since?: string | number): GatewayEventMessage[] {
+  if (!since) {
+    return eventRingBuffer.slice(-20)
+  }
+  const sinceStr = String(since)
+  const idx = eventRingBuffer.findIndex((e) => e.event_id === sinceStr)
+  if (idx === -1) {
+    return eventRingBuffer.slice(-50)
+  }
+  return eventRingBuffer.slice(idx + 1)
+}
+
+export async function handleWorkerMessage(
+  request: WorkerMessageRequest,
+  client: PersonaOSOrcaPluginClient
+): Promise<WorkerMessageResponse> {
+  const correlationId = request.correlationId || `req-${Date.now()}`
+  try {
+    switch (request.action) {
+      case 'getHealth': {
+        const data = await client.getHealth()
+        return { ok: true, data, correlationId }
+      }
+      case 'getDiagnostics': {
+        const payload = request.payload as { targetUrl?: string } | undefined
+        const data = await client.getDiagnostics(payload?.targetUrl)
+        return { ok: true, data, correlationId }
+      }
+      case 'getWorkers': {
+        const data = await client.listWorkers()
+        return { ok: true, data, correlationId }
+      }
+      case 'submitTask': {
+        const p = request.payload as TaskSubmitOptions
+        const data = await client.submitTask(p)
+        return { ok: true, data, correlationId }
+      }
+      case 'getDag': {
+        const p = request.payload as { runId?: string } | undefined
+        let runId = p?.runId
+        if (!runId) {
+          const runs = await client.listRuns()
+          runId = runs[0]?.run_id || 'run-default'
+        }
+        const data = await client.getRunDag(runId)
+        return { ok: true, data, correlationId }
+      }
+      case 'getReadyWaves': {
+        const p = request.payload as { runId?: string } | undefined
+        let runId = p?.runId
+        if (!runId) {
+          const runs = await client.listRuns()
+          runId = runs[0]?.run_id || 'run-default'
+        }
+        const data = await client.getRunReadyWaves(runId)
+        return { ok: true, data, correlationId }
+      }
+      case 'getDecisionGates': {
+        const p = request.payload as { runId?: string } | undefined
+        const data = await client.listDecisionGates(p?.runId)
+        return { ok: true, data, correlationId }
+      }
+      case 'resolveDecisionGate': {
+        const p = request.payload as {
+          gateId: string
+          decision: 'approve' | 'reject'
+          expectedGeneration: number
+          reviewNotes?: string
+          selectedOption?: string
+        }
+        const data = await client.resolveDecisionGate(
+          p.gateId,
+          p.decision,
+          p.expectedGeneration,
+          p.reviewNotes,
+          p.selectedOption
+        )
+        return { ok: true, data, correlationId }
+      }
+      case 'getExecutionSession': {
+        const p = request.payload as { taskId: string }
+        const data = await client.getTaskExecutionSession(p.taskId)
+        return { ok: true, data, correlationId }
+      }
+      case 'publishEvent': {
+        const p = request.payload as { eventType: GatewayEventType; payload: Record<string, unknown>; eventId?: string }
+        const data = await client.publishEvent(p.eventType, p.payload, p.eventId)
+        return { ok: true, data, correlationId }
+      }
+      case 'pollEvents': {
+        const p = (request.payload || {}) as PollEventsPayload
+        const newEvents = getEventsSince(p.since)
+        if (newEvents.length > 0) {
+          return {
+            ok: true,
+            data: {
+              events: newEvents,
+              lastEventId: eventRingBuffer[eventRingBuffer.length - 1]?.event_id,
+              connected: eventStreamSubscription?.isConnected() ?? false,
+            },
+            correlationId,
+          }
+        }
+        const timeoutMs = Math.min(Math.max(1000, p.timeoutMs || 15000), 30000)
+        return new Promise((resolve) => {
+          const timer = setTimeout(() => {
+            const idx = waitingEventPollers.findIndex((w) => w.timer === timer)
+            if (idx !== -1) waitingEventPollers.splice(idx, 1)
+            resolve({
+              ok: true,
+              data: {
+                events: [],
+                lastEventId: eventRingBuffer[eventRingBuffer.length - 1]?.event_id,
+                connected: eventStreamSubscription?.isConnected() ?? false,
+              },
+              correlationId,
+            })
+          }, timeoutMs)
+          waitingEventPollers.push({
+            since: p.since,
+            resolve: (res) => resolve({ ok: true, data: res, correlationId }),
+            timer,
+          })
+        })
+      }
+      default:
+        return {
+          ok: false,
+          error: `Unknown worker action: ${(request as any).action}`,
+          code: 'unknown_action',
+          correlationId,
+        }
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    const code = (err as any).diagnosticCode || 'action_failed'
+    return {
+      ok: false,
+      error: errorMsg,
+      code,
+      correlationId,
+    }
+  }
+}
+
+export default async function activate(context: PluginContext): Promise<void> {
+  const backendUrl = process.env.PERSONAOS_BACKEND_URL || 'http://127.0.0.1:8000'
+  context.log(`[PersonaOS Worker] Activating PersonaOS workforce bridge worker connecting to ${backendUrl}...`)
+
+  activeClient = new PersonaOSOrcaPluginClient({
+    apiBaseUrl: backendUrl,
+    token: process.env.PERSONAOS_API_TOKEN,
+  })
+
+  try {
+    eventStreamSubscription = activeClient.subscribeLifecycleEvents({
+      onEvent: (event) => {
+        pushEventToBuffer(event)
+      },
+      onError: (err) => {
+        context.log(`[PersonaOS Worker] EventStream error: ${err.message}`)
+      },
+      onConnectionStateChange: (state) => {
+        context.log(`[PersonaOS Worker] Event stream state: ${state}`)
+      },
+    })
+  } catch (err) {
+    context.log(`[PersonaOS Worker] Initial SSE subscription warning: ${String(err)}`)
+  }
+
+  context.commands.register('personaos.messageWorker', async (args: unknown) => {
+    if (!activeClient) {
+      throw new Error('PersonaOS client is not initialized in worker')
+    }
+    const request = args as WorkerMessageRequest
+    return await handleWorkerMessage(request, activeClient)
+  })
+
+  context.log(`[PersonaOS Worker] Worker activated and command 'personaos.messageWorker' registered.`)
+}
+
+export async function deactivate(): Promise<void> {
+  if (eventStreamSubscription) {
+    eventStreamSubscription.close()
+    eventStreamSubscription = null
+  }
+  while (waitingEventPollers.length > 0) {
+    const poller = waitingEventPollers.shift()
+    if (poller) {
+      clearTimeout(poller.timer)
+      poller.resolve({ events: [], connected: false })
+    }
+  }
+  activeClient = null
+}
+

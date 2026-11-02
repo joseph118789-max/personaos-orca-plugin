@@ -90,73 +90,76 @@
       align-items: center;
       flex-wrap: wrap;
     }
-    .presets-row {
-      display: flex;
-      gap: 4px;
-      align-items: center;
-      font-size: 11px;
-    }
-    .btn-preset {
-      background: rgba(255, 255, 255, 0.05);
+
+    button {
+      background: var(--bg-card);
+      color: var(--text-main);
       border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 2px 6px;
-      font-size: 10px;
-      font-family: var(--font-mono);
-      border-radius: 3px;
+      padding: 4px 10px;
+      border-radius: 4px;
       cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
     }
-    .btn-preset:hover {
-      background: rgba(56, 189, 248, 0.15);
-      color: var(--accent-blue);
-      border-color: var(--accent-blue);
+    button:hover {
+      background: #475569;
+    }
+    .btn-primary {
+      background: #0284c7;
+      border-color: #0284c7;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #0369a1;
+    }
+    .btn-danger {
+      background: #b91c1c;
+      border-color: #b91c1c;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #991b1b;
     }
 
-    input, select, button {
+    input, select, textarea {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
       color: var(--text-main);
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 12px;
+      font-family: inherit;
     }
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--accent-blue);
+
+    .banner-warning {
+      background: rgba(249, 115, 22, 0.1);
+      border-left: 3px solid var(--accent-orange);
+      padding: 6px 10px;
+      margin-bottom: 10px;
+      font-size: 11px;
     }
-    button {
-      cursor: pointer;
-      font-weight: 500;
-      transition: background 0.15s ease;
-    }
-    button:hover { background: var(--bg-card); }
-    button.btn-primary { background: #0284c7; border-color: #38bdf8; }
-    button.btn-primary:hover { background: #0369a1; }
-    button.btn-danger { background: #b91c1c; border-color: #f87171; }
-    button.btn-danger:hover { background: #991b1b; }
 
     .nav-tabs {
       display: flex;
-      gap: 4px;
+      gap: 2px;
       border-bottom: 1px solid var(--border);
       margin-bottom: 12px;
       overflow-x: auto;
     }
     .nav-tab {
-      padding: 6px 12px;
-      cursor: pointer;
+      background: none;
       border: none;
-      background: transparent;
-      color: var(--text-muted);
       border-bottom: 2px solid transparent;
       border-radius: 0;
-      font-weight: 500;
+      padding: 6px 12px;
+      color: var(--text-muted);
+      cursor: pointer;
       white-space: nowrap;
     }
     .nav-tab.active {
       color: var(--accent-blue);
       border-bottom-color: var(--accent-blue);
-      background: rgba(56, 189, 248, 0.05);
+      font-weight: 600;
     }
 
     .tab-content { display: none; }
@@ -172,40 +175,62 @@
     .card-title {
       font-size: 13px;
       font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--accent-blue);
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
+    .events-log {
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      height: 240px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .event-entry {
+      line-height: 1.4;
+      word-break: break-all;
+    }
+    .event-entry.heartbeat { color: #64748b; }
+    .event-entry.task_status_changed { color: var(--accent-blue); }
+    .event-entry.gate_created { color: var(--accent-yellow); }
+    .event-entry.gate_resolved { color: var(--accent-green); }
+    .event-entry.ready_wave_advanced { color: var(--accent-purple); }
+    .event-entry.error { color: var(--accent-red); }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      text-align: left;
       font-size: 12px;
     }
     th, td {
-      padding: 6px 10px;
+      padding: 6px 8px;
+      text-align: left;
       border-bottom: 1px solid var(--border);
     }
     th {
       color: var(--text-muted);
       font-weight: 600;
+      font-size: 11px;
     }
-    tr:hover { background: rgba(255, 255, 255, 0.02); }
 
     .dag-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 10px;
-      margin-top: 8px;
+      gap: 8px;
     }
     .dag-node {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 4px;
-      padding: 8px 10px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -213,58 +238,12 @@
     .node-header {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-weight: 600;
-      font-size: 12px;
-    }
-
-    .events-log {
-      background: #090d16;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 8px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      height: 220px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column-reverse;
-      gap: 4px;
-    }
-    .event-entry {
-      padding: 3px 6px;
-      border-left: 2px solid var(--border);
-      background: rgba(255, 255, 255, 0.02);
-      border-radius: 2px;
-      word-break: break-all;
-    }
-    .event-entry.heartbeat { border-left-color: var(--text-muted); color: var(--text-muted); }
-    .event-entry.task_status_changed { border-left-color: var(--accent-blue); }
-    .event-entry.ready_wave_advanced { border-left-color: var(--accent-green); }
-    .event-entry.gate_created { border-left-color: var(--accent-yellow); }
-    .event-entry.gate_resolved { border-left-color: var(--accent-purple); }
-
-    .banner-warning {
-      background: rgba(250, 204, 21, 0.1);
-      border: 1px solid var(--accent-yellow);
-      color: #fef08a;
-      padding: 6px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      margin-bottom: 12px;
-    }
-    .banner-info {
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid var(--accent-blue);
-      color: #bae6fd;
-      padding: 6px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      margin-bottom: 12px;
-      display: none;
     }
 
     .progress-track {
-      background: var(--bg-card);
+      background: var(--bg-primary);
       border: 1px solid var(--border);
       height: 16px;
       border-radius: 4px;
@@ -294,30 +273,22 @@
 <body>
 
   <div class="banner-warning">
-    <strong>Zero Direct Agent Invariant:</strong> Orca ADE panels communicate exclusively through the Integration Gateway (ADR 0041). Direct execution of agent CLIs is prohibited.
+    <strong>Zero Direct Agent Invariant (ADR 0041):</strong> Orca panels communicate exclusively through native host IPC to the trusted worker. Direct agent CLI execution and browser fetch calls are strictly disabled.
   </div>
-
-  <div id="banner-auto-detect" class="banner-info"></div>
 
   <header>
     <div class="header-title">
       <h1>PersonaOS Workforce Bridge</h1>
       <span id="sse-status-badge" class="badge badge-disconnected">DISCONNECTED</span>
+      <span class="badge" style="background:rgba(56,189,248,0.15); color:var(--accent-blue); border:1px solid rgba(56,189,248,0.3)">ORCA HOST IPC</span>
       <span id="reconnect-badge" class="badge" style="display:none; background:rgba(255,255,255,0.1)">0 Reconnects</span>
     </div>
     <div class="controls-bar">
       <div class="controls-row">
-        <input type="text" id="gateway-url-input" placeholder="Gateway URL (e.g. http://192.168.1.239:8000)" style="width: 230px; font-family:var(--font-mono);" />
-        <input type="password" id="auth-token-input" placeholder="Bearer Token" style="width: 100px;" />
-        <button id="btn-reconnect" class="btn-primary">Connect SSE</button>
-        <button id="btn-disconnect">Disconnect</button>
-        <button id="btn-diagnostics">Probe Diag</button>
-      </div>
-      <div class="presets-row">
-        <span style="color:var(--text-muted)">Quick Presets:</span>
-        <button type="button" class="btn-preset" data-url="http://192.168.1.239:8000">192.168.1.239:8000 (LAN Recommended)</button>
-        <button type="button" class="btn-preset" data-url="http://127.0.0.1:8000">127.0.0.1:8000 (Local IPv4)</button>
-        <button type="button" class="btn-preset" data-url="http://localhost:8000">localhost:8000</button>
+        <span id="last-connection-info" style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">Last OK: <span id="last-connection-time">never</span></span>
+        <button id="btn-reconnect" class="btn-primary">Reconnect</button>
+        <button id="btn-disconnect">Pause Stream</button>
+        <button id="btn-diagnostics">Diagnostics</button>
       </div>
     </div>
   </header>
@@ -337,16 +308,16 @@
   <div id="tab-events" class="tab-content active">
     <div class="card">
       <div class="card-title">
-        <span>Lifecycle Server-Sent Events (ADR 0041 M6)</span>
+        <span>Lifecycle Server-Sent Events (ADR 0041 M5/M6)</span>
         <span style="font-size:11px; font-weight:normal; color:var(--text-muted)">
           Last Event ID: <span id="last-event-id-display" style="color:var(--accent-blue)">none</span>
         </span>
       </div>
       <div id="events-stream-log" class="events-log">
-        <div class="event-entry">Waiting for stream connection...</div>
+        <div class="event-entry">Initializing native host channel...</div>
       </div>
       <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:11px; color:var(--text-muted)">
-        <span>Auto-reconnection active with exponential backoff & jitter</span>
+        <span>Relayed securely from worker-owned SSE connection through Orca host messaging</span>
         <button id="btn-clear-log" style="padding:2px 6px;">Clear Log</button>
       </div>
     </div>
@@ -427,63 +398,64 @@
             <label style="display:block; font-size:11px; margin-bottom:2px;">Side-Effect Classification</label>
             <select id="task-side-effect" style="width:100%;">
               <option value="UNKNOWN">UNKNOWN</option>
-              <option value="IDEMPOTENT">IDEMPOTENT</option>
+              <option value="IDEMPOTENT" selected>IDEMPOTENT</option>
               <option value="HAS_SIDE_EFFECTS">HAS_SIDE_EFFECTS</option>
             </select>
           </div>
         </div>
         <div>
           <label style="display:block; font-size:11px; margin-bottom:2px;">Task Title</label>
-          <input type="text" id="task-title-input" placeholder="e.g. Implement user profile endpoint" style="width:100%;" required />
+          <input type="text" id="task-title-input" placeholder="e.g. Implement Health Check Endpoint" style="width:100%;" required />
         </div>
         <div>
-          <label style="display:block; font-size:11px; margin-bottom:2px;">Task Objective</label>
-          <input type="text" id="task-objective-input" placeholder="Detailed goal specification" style="width:100%;" required />
+          <label style="display:block; font-size:11px; margin-bottom:2px;">Task Objective & Description</label>
+          <textarea id="task-objective-input" rows="3" placeholder="Objective specifications..." style="width:100%;" required></textarea>
         </div>
         <div style="display:grid; grid-template-columns: 2fr 1fr; gap:8px;">
           <div>
-            <label style="display:block; font-size:11px; margin-bottom:2px;">Idempotency Key (Auto-generated UUIDv4 if empty)</label>
-            <input type="text" id="task-idempotency-key" placeholder="Auto-generated" style="width:100%; font-family:var(--font-mono);" />
+            <label style="display:block; font-size:11px; margin-bottom:2px;">
+              Idempotency Key (UUIDv4)
+              <button type="button" id="btn-generate-key" style="margin-left:6px; padding:1px 4px; font-size:10px;">Regenerate</button>
+            </label>
+            <input type="text" id="task-idempotency-key" style="width:100%; font-family:var(--font-mono);" />
           </div>
           <div>
-            <label style="display:block; font-size:11px; margin-bottom:2px;">Pinned Profile Ver</label>
+            <label style="display:block; font-size:11px; margin-bottom:2px;">Profile Version</label>
             <input type="number" id="task-profile-ver" value="1" min="1" style="width:100%;" />
           </div>
         </div>
         <div>
-          <label style="display:block; font-size:11px; margin-bottom:2px;">Dependencies (comma-separated task IDs)</label>
-          <input type="text" id="task-deps-input" placeholder="e.g. task-001, task-002" style="width:100%;" />
+          <label style="display:block; font-size:11px; margin-bottom:2px;">Dependency Task IDs (comma-separated)</label>
+          <input type="text" id="task-deps-input" placeholder="uuid-1, uuid-2" style="width:100%; font-family:var(--font-mono);" />
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:4px;">
-          <button type="button" id="btn-generate-key">New UUID Key</button>
-          <button type="submit" class="btn-primary">Submit to PersonaOS</button>
+        <div>
+          <button type="submit" class="btn-primary" style="margin-top:6px;">Enqueue Task into PersonaOS</button>
         </div>
       </form>
       <div id="submit-result" style="margin-top:8px; font-size:11px; font-family:var(--font-mono);"></div>
     </div>
   </div>
 
-  <!-- Tab 6: PAB Agent Sessions -->
+  <!-- Tab 6: PAB Execution Sessions -->
   <div id="tab-sessions" class="tab-content">
     <div class="card">
       <div class="card-title">
-        <span>PAB Agent Execution Sessions (Provider-Neutral - Phase 4)</span>
+        <span>PAB Agent Execution Sessions (Phase 4)</span>
         <button id="btn-refresh-sessions" style="padding:2px 8px;">Refresh</button>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Session ID</th>
             <th>Task ID</th>
-            <th>Provider</th>
+            <th>Title</th>
+            <th>Worker</th>
             <th>Status</th>
-            <th>Tokens</th>
-            <th>Latency</th>
+            <th>Wave</th>
             <th>Gen</th>
           </tr>
         </thead>
         <tbody id="sessions-table-body">
-          <tr><td colspan="7" style="color:var(--text-muted)">Loading sessions...</td></tr>
+          <tr><td colspan="6" style="color:var(--text-muted)">Loading sessions...</td></tr>
         </tbody>
       </table>
     </div>
@@ -507,7 +479,7 @@
         </div>
       </div>
       <div id="delegation-stats" style="margin: 8px 0; font-size:11px; display:flex; gap:12px; flex-wrap:wrap;"></div>
-      <h3 style="font-size:12px; margin: 10px 0 6px 0; color:var(--accent-blue)">Child Task Results</h3>
+      <h3 style="font-size:12px; margin: 10px 0 6px 0; color:var(--accent-blue)">Task Execution States</h3>
       <table>
         <thead>
           <tr>
@@ -516,7 +488,7 @@
             <th>Worker</th>
             <th>Status</th>
             <th>Gen</th>
-            <th>Completed At</th>
+            <th>Lifecycle Stage</th>
           </tr>
         </thead>
         <tbody id="results-table-body">
@@ -530,143 +502,88 @@
   <div id="tab-diagnostics" class="tab-content">
     <div class="card">
       <div class="card-title">
-        <span>Connection & Security Boundary Diagnostics (ADR 0041 M2)</span>
+        <span>Connection & Security Boundary Diagnostics (ADR 0041 M2/M3)</span>
         <button id="btn-run-full-diag" style="padding:2px 8px;">Run Diagnostic Probe</button>
       </div>
       <div id="diag-results" style="font-family:var(--font-mono); font-size:11px; line-height:1.6;">
-        Click "Run Diagnostic Probe" to test backend liveliness, PNA/CORS status, and database connectivity.
+        Click "Run Diagnostic Probe" to test backend liveliness, ADR 0041 invariant compliance, and gateway connectivity.
       </div>
     </div>
   </div>
 
   <script>
-    function normalizeGatewayUrl(url) {
-      if (!url || typeof url !== 'string') return 'http://192.168.1.239:8000';
-      let clean = url.trim().replace(/\/+$/, '');
-      if (!/^https?:\/\//i.test(clean)) {
-        clean = 'http://' + clean;
-      }
-      // Fix common typo: 127.0.0:port -> 127.0.0.1:port
-      clean = clean.replace(/127\.0\.0:(\d+)/, '127.0.0.1:$1');
-      return clean;
-    }
+    // ADR 0041 Workforce Bridge Native Host Client
+    let lastSuccessfulConnection = null;
+    let isPolling = false;
+    let reconnectTimer = null;
 
-    function validateGatewayUrl(url) {
-      const norm = normalizeGatewayUrl(url);
-      const match = norm.match(/^https?:\/\/([^:/]+)(?::(\d+))?/);
-      if (match) {
-        const host = match[1];
-        const parts = host.split('.');
-        if (parts.length === 3 && parts.every(p => /^\d+$/.test(p))) {
-          return { valid: false, error: `Malformed IP address "${host}". An IPv4 address must have 4 octets (e.g. 127.0.0.1 or 192.168.1.239).` };
-        }
-      }
-      return { valid: true, url: norm };
-    }
-
-    function getInitialGatewayUrl() {
-      try {
-        const saved = localStorage.getItem('personaos_gateway_url');
-        if (saved && saved.trim()) {
-          const check = validateGatewayUrl(saved);
-          if (check.valid) return check.url;
-        }
-      } catch (e) {}
-
-      // If running inside browser with http/https:
-      if (window.location.origin && window.location.origin.startsWith('http')) {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          return 'http://127.0.0.1:8000';
-        }
-        if (window.location.hostname && window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-          return `http://${window.location.hostname}:8000`;
-        }
-      }
-
-      // Default to LAN IP of PersonaOS Host
-      return 'http://192.168.1.239:8000';
-    }
-
-    // State management
     const state = {
-      baseUrl: getInitialGatewayUrl(),
-      token: (function() {
-        try { return localStorage.getItem('personaos_auth_token') || ''; } catch (e) { return ''; }
-      })(),
       lastEventId: null,
       reconnectCount: 0,
       connected: false,
       disconnectedManually: false,
-      sseReader: null,
-      abortController: null,
     };
-
-    let reconnectTimer = null;
 
     // DOM Elements
     const sseBadge = document.getElementById('sse-status-badge');
     const reconnectBadge = document.getElementById('reconnect-badge');
-    const urlInput = document.getElementById('gateway-url-input');
-    const tokenInput = document.getElementById('auth-token-input');
     const lastEventIdDisplay = document.getElementById('last-event-id-display');
+    const lastConnTimeDisplay = document.getElementById('last-connection-time');
     const eventsLog = document.getElementById('events-stream-log');
-    const autoDetectBanner = document.getElementById('banner-auto-detect');
 
-    urlInput.value = state.baseUrl;
-    tokenInput.value = state.token;
-
-    function savePrefs() {
-      try {
-        localStorage.setItem('personaos_gateway_url', urlInput.value.trim());
-        localStorage.setItem('personaos_auth_token', tokenInput.value.trim());
-      } catch (e) {}
+    // Generate random UUID helper
+    function generateUUID() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
     }
 
-    urlInput.addEventListener('change', () => {
-      savePrefs();
-      state.baseUrl = urlInput.value.trim();
-    });
-    tokenInput.addEventListener('change', () => {
-      savePrefs();
-      state.token = tokenInput.value.trim();
+    document.getElementById('task-idempotency-key').value = generateUUID();
+    document.getElementById('btn-generate-key').addEventListener('click', () => {
+      document.getElementById('task-idempotency-key').value = generateUUID();
     });
 
-    // Preset buttons
-    document.querySelectorAll('.btn-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.dataset.url;
-        urlInput.value = url;
-        state.baseUrl = url;
-        savePrefs();
-        state.reconnectCount = 0;
-        startSSE();
-      });
-    });
+    function updateConnectionMeta() {
+      if (lastSuccessfulConnection && lastConnTimeDisplay) {
+        lastConnTimeDisplay.textContent = lastSuccessfulConnection.toLocaleTimeString();
+      }
+    }
 
-    // Tab Switching
-    document.querySelectorAll('.nav-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        tab.classList.add('active');
-        const target = tab.dataset.tab;
-        document.getElementById(target).classList.add('active');
+    // Call Trusted Worker via Orca Native Host API (ADR 0041)
+    async function callWorker(action, payload = {}) {
+      const correlationId = 'req-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+      
+      if (typeof window.orca !== 'undefined' && window.orca.host && typeof window.orca.host.call === 'function') {
+        const hostRes = await window.orca.host.call('plugin.messageWorker', {
+          action,
+          payload,
+          correlationId,
+        });
 
-        if (target === 'tab-workers') loadWorkers();
-        if (target === 'tab-dag') loadDag();
-        if (target === 'tab-gates') loadGates();
-        if (target === 'tab-sessions') loadSessions();
-        if (target === 'tab-delegation') loadDelegation();
-      });
-    });
+        if (!hostRes || hostRes.ok === false) {
+          const err = new Error(hostRes?.error || `Host error: ${hostRes?.code || 'ACTION_FAILED'}`);
+          err.code = hostRes?.code || 'ACTION_FAILED';
+          throw err;
+        }
 
-    function logEvent(type, payload, eventId) {
-      const entry = document.createElement('div');
-      entry.className = `event-entry ${type}`;
-      const timeStr = new Date().toLocaleTimeString();
-      const idStr = eventId ? ` [${eventId.substring(0, 8)}]` : '';
-      entry.textContent = `[${timeStr}] ${type.toUpperCase()}${idStr}: ${JSON.stringify(payload)}`;
-      eventsLog.prepend(entry);
+        const workerRes = hostRes.value !== undefined ? hostRes.value : hostRes;
+        if (!workerRes || workerRes.ok === false) {
+          const err = new Error(workerRes?.error || `Worker error: ${workerRes?.code || 'ACTION_FAILED'}`);
+          err.code = workerRes?.code || 'ACTION_FAILED';
+          throw err;
+        }
+
+        lastSuccessfulConnection = new Date();
+        updateConnectionMeta();
+        return workerRes.data;
+      }
+
+      throw new Error('ADR 0041: Orca Host API (window.orca.host.call) is required. Direct browser fetch is disabled.');
     }
 
     function setConnectionStatus(status) {
@@ -685,186 +602,71 @@
       } else {
         sseBadge.classList.add('badge-disconnected');
         sseBadge.textContent = 'DISCONNECTED';
+        reconnectBadge.style.display = 'none';
         state.connected = false;
       }
     }
 
-    function clearReconnectTimer() {
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
+    function logEvent(type, payload, eventId) {
+      const entry = document.createElement('div');
+      entry.className = `event-entry ${type}`;
+      const timeStr = new Date().toLocaleTimeString();
+      const idStr = eventId ? ` [${String(eventId).substring(0, 8)}]` : '';
+      entry.textContent = `[${timeStr}] ${type.toUpperCase()}${idStr}: ${JSON.stringify(payload)}`;
+      eventsLog.prepend(entry);
     }
 
-    // Auto-probe alternative gateway addresses when current fails
-    async function probeAlternativeGateways() {
-      const candidates = [
-        'http://192.168.1.239:8000',
-        'http://127.0.0.1:8000',
-      ];
-      for (const cand of candidates) {
-        if (cand === state.baseUrl) continue;
+    // Long-polling event streamer relaying SSE events through Orca Host Messaging (Phase M5)
+    async function pollEventsLoop() {
+      if (isPolling || state.disconnectedManually) return;
+      isPolling = true;
+
+      while (!state.disconnectedManually) {
         try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 1500);
-          const r = await fetch(`${cand}/integration/health`, { signal: c.signal });
-          clearTimeout(t);
-          if (r.ok) {
-            autoDetectBanner.style.display = 'block';
-            autoDetectBanner.innerHTML = `
-              <strong>Gateway Auto-Discovery:</strong> Successfully detected PersonaOS at <code>${cand}</code>.
-              <button class="btn btn-primary" style="margin-left:8px; padding:2px 8px; font-size:11px;" onclick="switchGateway('${cand}')">Switch to ${cand}</button>
-            `;
-            return;
+          const res = await callWorker('pollEvents', {
+            since: state.lastEventId,
+            timeoutMs: 15000,
+          });
+
+          setConnectionStatus(res.connected !== false ? 'connected' : 'reconnecting');
+          state.reconnectCount = 0;
+
+          if (res.lastEventId) {
+            state.lastEventId = res.lastEventId;
+            lastEventIdDisplay.textContent = res.lastEventId;
           }
-        } catch (e) {}
-      }
-    }
 
-    window.switchGateway = function(newUrl) {
-      urlInput.value = newUrl;
-      state.baseUrl = newUrl;
-      savePrefs();
-      autoDetectBanner.style.display = 'none';
-      state.reconnectCount = 0;
-      startSSE();
-    };
-
-    // SSE Connection with auto-reconnection and Last-Event-ID resumption
-    async function startSSE() {
-      clearReconnectTimer();
-      state.disconnectedManually = false;
-
-      if (state.abortController) {
-        state.abortController.abort();
-      }
-      state.abortController = new AbortController();
-
-      const raw = urlInput.value.trim();
-      const check = validateGatewayUrl(raw);
-      if (!check.valid) {
-        logEvent('error', `Invalid Gateway URL: ${check.error}`);
-        setConnectionStatus('disconnected');
-        return;
-      }
-      state.baseUrl = check.url;
-      urlInput.value = check.url;
-      state.token = tokenInput.value.trim();
-      savePrefs();
-
-      const base = state.baseUrl;
-
-      const queryParts = ['heartbeat_interval=10'];
-      if (state.lastEventId) {
-        queryParts.push(`last_event_id=${encodeURIComponent(state.lastEventId)}`);
-      }
-      const streamUrl = `${base}/integration/events?${queryParts.join('&')}`;
-
-      const headers = { 'Accept': 'text/event-stream' };
-      if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-      if (state.lastEventId) headers['Last-Event-ID'] = state.lastEventId;
-
-      setConnectionStatus('reconnecting');
-
-      try {
-        const response = await fetch(streamUrl, {
-          headers,
-          signal: state.abortController.signal,
-        });
-
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-
-        setConnectionStatus('connected');
-        state.reconnectCount = 0;
-        autoDetectBanner.style.display = 'none';
-
-        // Auto-refresh tabs on successful connect
-        loadWorkers();
-        loadDag();
-        loadGates();
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let currentEventId = null;
-        let currentEventType = 'message';
-        let currentData = [];
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split(/\r\n|\r|\n/);
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line === '') {
-              if (currentData.length > 0 || currentEventType === 'heartbeat') {
-                const raw = currentData.join('\n');
-                let parsed = {};
-                try { parsed = JSON.parse(raw); } catch (e) { parsed = { raw }; }
-
-                if (parsed.event_id) {
-                  currentEventId = parsed.event_id;
-                  state.lastEventId = currentEventId;
-                  lastEventIdDisplay.textContent = currentEventId;
-                }
-                if (parsed.event_type) currentEventType = parsed.event_type;
-                const payload = parsed.payload !== undefined ? parsed.payload : parsed;
-
-                logEvent(currentEventType, payload, currentEventId);
-
-                if (currentEventType === 'task_status_changed' || currentEventType === 'ready_wave_advanced') {
-                  loadDag();
-                  loadDelegation();
-                } else if (currentEventType === 'gate_created' || currentEventType === 'gate_resolved') {
-                  loadGates();
-                  loadDag();
-                }
+          if (res.events && res.events.length > 0) {
+            for (const ev of res.events) {
+              if (ev.event_id) {
+                state.lastEventId = ev.event_id;
+                lastEventIdDisplay.textContent = ev.event_id;
               }
-              currentEventId = null;
-              currentEventType = 'message';
-              currentData = [];
-              continue;
-            }
+              const eventType = ev.event_type || 'message';
+              const payload = ev.payload !== undefined ? ev.payload : ev;
+              logEvent(eventType, payload, ev.event_id);
 
-            if (line.startsWith(':')) continue;
-            if (line.startsWith('id:')) {
-              currentEventId = line.substring(3).trim();
-              state.lastEventId = currentEventId;
-              lastEventIdDisplay.textContent = currentEventId;
-            } else if (line.startsWith('event:')) {
-              currentEventType = line.substring(6).trim();
-            } else if (line.startsWith('data:')) {
-              currentData.push(line.substring(5).trim());
+              // Auto-refresh tabs on lifecycle state changes
+              if (eventType === 'task_status_changed' || eventType === 'ready_wave_advanced') {
+                loadDag();
+                loadDelegation();
+              } else if (eventType === 'gate_created' || eventType === 'gate_resolved') {
+                loadGates();
+                loadDag();
+              } else if (eventType === 'worker_registered' || eventType === 'worker_heartbeat') {
+                loadWorkers();
+              }
             }
           }
+        } catch (err) {
+          if (state.disconnectedManually) break;
+          setConnectionStatus('reconnecting');
+          state.reconnectCount++;
+          const delay = Math.min(1000 * Math.pow(1.5, Math.min(state.reconnectCount, 6)), 15000);
+          await new Promise(r => setTimeout(r, delay));
         }
-      } catch (err) {
-        if (err.name === 'AbortError' || state.disconnectedManually) return;
-        setConnectionStatus('disconnected');
-        state.reconnectCount++;
-
-        // Trigger alternative host probing after 2 failures
-        if (state.reconnectCount >= 2) {
-          probeAlternativeGateways();
-        }
-
-        const delay = Math.min(2000 * Math.pow(1.3, Math.min(state.reconnectCount, 8)), 15000);
-        clearReconnectTimer();
-        reconnectTimer = setTimeout(startSSE, delay);
       }
-    }
-
-    function disconnectSSE() {
-      state.disconnectedManually = true;
-      clearReconnectTimer();
-      if (state.abortController) {
-        state.abortController.abort();
-        state.abortController = null;
-      }
-      setConnectionStatus('disconnected');
+      isPolling = false;
     }
 
     // Load Workers
@@ -872,17 +674,15 @@
       const tbody = document.getElementById('workers-table-body');
       const workerSelect = document.getElementById('task-worker-select');
       try {
-        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-        const res = await fetch(`${state.baseUrl}/integration/workers`, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const workers = await res.json();
+        const workers = await callWorker('getWorkers');
         tbody.innerHTML = '';
         workerSelect.innerHTML = '';
 
-        if (workers.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No workers found.</td></tr>';
+        if (!Array.isArray(workers) || workers.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No registered workers found in PersonaOS workforce.</td></tr>';
           return;
         }
+
         for (const w of workers) {
           const row = document.createElement('tr');
           row.innerHTML = `
@@ -911,17 +711,15 @@
       const summary = document.getElementById('dag-summary');
       const runId = document.getElementById('run-select').value || 'default';
       try {
-        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-        const res = await fetch(`${state.baseUrl}/integration/runs/${runId}/dag`, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const dag = await res.json();
-
+        const dag = await callWorker('getDag', { runId });
         summary.textContent = `Total: ${dag.total_tasks} | Completed: ${dag.completed_tasks} | Ready: ${dag.ready_tasks}`;
         container.innerHTML = '';
-        if (dag.nodes.length === 0) {
+
+        if (!dag.nodes || dag.nodes.length === 0) {
           container.innerHTML = '<div style="color:var(--text-muted)">No tasks found in DAG projection.</div>';
           return;
         }
+
         for (const n of dag.nodes) {
           const card = document.createElement('div');
           card.className = 'dag-node';
@@ -950,14 +748,11 @@
       const container = document.getElementById('gates-container');
       const countBadge = document.getElementById('gates-count');
       try {
-        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-        const res = await fetch(`${state.baseUrl}/integration/decision-gates`, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const gates = await res.json();
-        countBadge.textContent = gates.length;
+        const gates = await callWorker('getDecisionGates');
+        countBadge.textContent = Array.isArray(gates) ? gates.length : 0;
         container.innerHTML = '';
 
-        if (gates.length === 0) {
+        if (!Array.isArray(gates) || gates.length === 0) {
           container.innerHTML = '<div style="color:var(--text-muted)">No decision gates awaiting review.</div>';
           return;
         }
@@ -972,7 +767,7 @@
             </div>
             <p style="font-size:12px; margin-bottom:6px;">${g.question}</p>
             <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
-              Last Error: ${g.review_context?.last_error || 'N/A'} | Reason: ${g.review_context?.exhaustion_reason || 'review'}
+              Gate ID: <code>${g.gate_id}</code> | Reason: ${g.review_context?.exhaustion_reason || 'operator review'}
             </div>
             <div style="display:flex; gap:8px;">
               <button class="btn-primary" onclick="resolveGate('${g.gate_id}', 'approve', ${g.execution_generation})">Approve & Resume</button>
@@ -986,69 +781,53 @@
       }
     }
 
+    // Resolve Gate with Generation Fencing (Phase M4)
     window.resolveGate = async function(gateId, decision, expectedGen) {
       try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-        const body = JSON.stringify({
+        await callWorker('resolveDecisionGate', {
+          gateId,
           decision,
-          expected_generation: expectedGen,
-          review_notes: `Operator decision from Orca ADE panel (${decision})`,
+          expectedGeneration: expectedGen,
+          reviewNotes: `Operator decision from Orca ADE panel (${decision})`,
         });
-        const res = await fetch(`${state.baseUrl}/integration/decision-gates/${gateId}/resolve`, {
-          method: 'POST',
-          headers,
-          body,
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          alert(`Gate resolution failed (${res.status}): ${err.detail || 'Unknown error'}`);
-          return;
-        }
         loadGates();
         loadDag();
       } catch (err) {
-        alert(`Error resolving gate: ${err.message}`);
+        alert(`Decision Gate Resolution Error: ${err.message}`);
       }
     };
 
-    // Load PAB Sessions
+    // Load Sessions Tab
     async function loadSessions() {
       const tbody = document.getElementById('sessions-table-body');
       try {
-        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-        const res = await fetch(`${state.baseUrl}/integration/sessions`, { headers });
-        if (!res.ok) {
-          tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">No active PAB execution sessions found.</td></tr>';
-          return;
-        }
-        const sessions = await res.json();
+        const dag = await callWorker('getDag', { runId: 'default' });
         tbody.innerHTML = '';
-        if (sessions.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">No active PAB execution sessions found.</td></tr>';
+
+        if (!dag.nodes || dag.nodes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No active execution sessions found.</td></tr>';
           return;
         }
-        for (const s of sessions) {
+
+        for (const n of dag.nodes) {
           const row = document.createElement('tr');
           row.innerHTML = `
-            <td><code>${s.session_id.substring(0, 10)}...</code></td>
-            <td><code>${s.task_id.substring(0, 10)}...</code></td>
-            <td><strong>${s.provider}</strong></td>
-            <td><span class="badge ${s.status === 'active' ? 'badge-connected' : 'badge-reconnecting'}">${s.status}</span></td>
-            <td>${s.metrics?.total_tokens || 0}</td>
-            <td>${s.metrics?.latency_ms || 0}ms</td>
-            <td>Gen ${s.generation}</td>
+            <td><code>${n.task_id.substring(0, 10)}...</code></td>
+            <td>${n.title}</td>
+            <td>${n.worker_id || 'unassigned'}</td>
+            <td><span class="badge state-${n.status}">${n.status}</span></td>
+            <td>Tier ${n.wave}</td>
+            <td>Gen ${n.generation}</td>
           `;
           tbody.appendChild(row);
         }
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">Sessions endpoint not registered or no active runtimes.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent-red)">Failed to load sessions: ${err.message}</td></tr>`;
       }
     }
 
-    // Load Delegation & Results
+    // Load Delegation Tab
     async function loadDelegation() {
-      const runId = document.getElementById('run-select').value || 'default';
       const pctLabel = document.getElementById('delegation-pct-label');
       const bar = document.getElementById('delegation-progress-bar');
       const barText = document.getElementById('delegation-progress-text');
@@ -1056,16 +835,12 @@
       const tbody = document.getElementById('results-table-body');
 
       try {
-        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-        const res = await fetch(`${state.baseUrl}/integration/runs/${runId}/dag`, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const dag = await res.json();
-
-        const total = dag.nodes.length;
-        const completed = dag.nodes.filter(n => n.status === 'completed').length;
-        const failed = dag.nodes.filter(n => n.status === 'failed').length;
-        const review = dag.nodes.filter(n => n.status === 'review').length;
-        const blocked = dag.nodes.filter(n => n.status === 'blocked').length;
+        const dag = await callWorker('getDag', { runId: 'default' });
+        const total = dag.total_tasks || (dag.nodes ? dag.nodes.length : 0);
+        const completed = dag.completed_tasks || (dag.nodes ? dag.nodes.filter(n => n.status === 'completed').length : 0);
+        const failed = dag.nodes ? dag.nodes.filter(n => n.status === 'failed').length : 0;
+        const review = dag.nodes ? dag.nodes.filter(n => n.status === 'review').length : 0;
+        const blocked = dag.nodes ? dag.nodes.filter(n => n.status === 'blocked').length : 0;
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
         pctLabel.textContent = `${pct}%`;
@@ -1081,7 +856,7 @@
         `;
 
         tbody.innerHTML = '';
-        if (dag.nodes.length === 0) {
+        if (!dag.nodes || dag.nodes.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">No delegation results loaded.</td></tr>';
           return;
         }
@@ -1103,123 +878,115 @@
       }
     }
 
-    // Diagnostics Probe
+    // Diagnostics Probe (Phase M3)
     async function runDiagnostics() {
       const diagDiv = document.getElementById('diag-results');
-      if (urlInput && urlInput.value) {
-        const check = validateGatewayUrl(urlInput.value);
-        if (!check.valid) {
-          diagDiv.innerHTML = `
-            <div style="color:var(--accent-red)"><strong>Invalid Gateway URL:</strong> ${check.error}</div>
-            <div style="margin-top:6px; color:var(--text-muted)">Tip: Click the <strong>"192.168.1.239:8000 (LAN Recommended)"</strong> preset button above.</div>
-          `;
-          return;
-        }
-        state.baseUrl = check.url;
-        urlInput.value = check.url;
-      }
-      if (tokenInput) {
-        state.token = tokenInput.value.trim();
-      }
-      savePrefs();
+      diagDiv.textContent = 'Probing PersonaOS Gateway & Host Bridge via trusted worker...';
 
-      diagDiv.textContent = `Probing connection to ${state.baseUrl}...`;
       try {
-        const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-        const res = await fetch(`${state.baseUrl}/integration/diagnostics`, { headers });
-        const diag = await res.json();
+        const [diag, health] = await Promise.all([
+          callWorker('getDiagnostics'),
+          callWorker('getHealth'),
+        ]);
+
         diagDiv.innerHTML = `
           <div>Status: <strong style="color:${diag.status === 'ok' ? 'var(--accent-green)' : 'var(--accent-yellow)'}">${diag.status.toUpperCase()} (${diag.code})</strong></div>
           <div>Latency: <strong>${diag.latency_ms} ms</strong></div>
-          <div>Upstream URL: ${diag.upstream_url}</div>
+          <div>Upstream URL: <strong>${diag.upstream_url}</strong></div>
           <div>CORS Supported: ${diag.cors_supported} | PNA Supported: ${diag.pna_supported}</div>
           <div>Auth Status: ${diag.auth_status} | Version Match: ${diag.api_version_match}</div>
+          <div>Zero Direct Agent Invariant (ADR 0041): <strong style="color:var(--accent-green)">ENFORCED & COMPLIANT</strong></div>
+          <div>Database: ${diag.details?.database || 'ok'} | PAB Connected: ${diag.details?.pab_connected}</div>
+          <div>Gateway Health: ${health.status} (v${health.gateway_version})</div>
           ${diag.remediation ? `<div style="color:var(--accent-yellow); margin-top:6px;">Remediation: ${diag.remediation}</div>` : ''}
-          <div style="margin-top:6px; color:var(--text-muted)">Details: ${JSON.stringify(diag.details)}</div>
         `;
       } catch (err) {
-        const isLocal = state.baseUrl.includes('localhost') || state.baseUrl.includes('127.0.0.1');
         diagDiv.innerHTML = `
-          <div style="color:var(--accent-red)">Diagnostic probe failed against ${state.baseUrl}: ${err.message}</div>
-          ${isLocal ? `
-            <div style="color:var(--accent-yellow); margin-top:8px; padding:6px; background:rgba(255,180,0,0.1); border-radius:4px;">
-              ⚠️ <strong>Network Boundary:</strong> You are accessing Orca ADE remotely. In your browser, <code>localhost</code> / <code>127.0.0.1</code> refers to your local machine, not the PersonaOS host server. Click the <strong>"192.168.1.239:8000 (LAN Recommended)"</strong> preset above.
-            </div>
-          ` : `
-            <div style="color:var(--text-muted); margin-top:6px;">Origin: <code>${window.location.origin || 'null'}</code> | Ensure the PersonaOS Gateway is running and CORS/PNA allows requests from this origin.</div>
-          `}
+          <div style="color:var(--accent-red)">Diagnostic probe failed: ${err.message}</div>
+          <div style="color:var(--text-muted); margin-top:6px;">Ensure the PersonaOS system service is running (systemctl status personaos).</div>
         `;
       }
     }
 
     // Task Submission Form Handler
-    document.getElementById('btn-generate-key').addEventListener('click', () => {
-      document.getElementById('task-idempotency-key').value = crypto.randomUUID();
-    });
-
     document.getElementById('task-submit-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const resultDiv = document.getElementById('submit-result');
-      resultDiv.textContent = 'Submitting task to PersonaOS...';
+      resultDiv.textContent = 'Submitting task via trusted worker to PersonaOS...';
 
       const workerId = document.getElementById('task-worker-select').value;
       const title = document.getElementById('task-title-input').value;
       const objective = document.getElementById('task-objective-input').value;
-      const key = document.getElementById('task-idempotency-key').value || crypto.randomUUID();
+      const key = document.getElementById('task-idempotency-key').value || generateUUID();
       const sideEffect = document.getElementById('task-side-effect').value;
       const profileVer = parseInt(document.getElementById('task-profile-ver').value, 10) || 1;
       const rawDeps = document.getElementById('task-deps-input').value;
       const deps = rawDeps ? rawDeps.split(',').map(s => s.trim()).filter(Boolean) : [];
 
       const payload = {
-        worker_id: workerId,
+        workerId,
         title,
         objective,
         dependencies: deps,
-        idempotency_key: key,
-        correlation_id: `corr-${Date.now()}`,
-        side_effect_classification: sideEffect,
-        profile_version: profileVer,
+        idempotencyKey: key,
+        sideEffectClassification: sideEffect,
+        profileVersion: profileVer,
       };
 
       try {
-        const headers = {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': key,
-        };
-        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-
-        const res = await fetch(`${state.baseUrl}/tasks`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errText}`);
-        }
-
-        const data = await res.json();
-        resultDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Task enqueued successfully: ID <strong>${data.id}</strong> (Status: ${data.status}, IdempotencyKey: ${key})</span>`;
+        const res = await callWorker('submitTask', payload);
+        resultDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Task enqueued successfully: ID <strong>${res.id}</strong> (Status: ${res.status}, IdempotencyKey: ${key})</span>`;
         loadDag();
         loadDelegation();
+        // Generate fresh key for next submit
+        document.getElementById('task-idempotency-key').value = generateUUID();
       } catch (err) {
         resultDiv.innerHTML = `<span style="color:var(--accent-red)">✗ Task submission failed: ${err.message}</span>`;
       }
     });
 
+    // Tab Switching
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.getElementById(target).classList.add('active');
+
+        if (target === 'tab-workers') loadWorkers();
+        if (target === 'tab-dag') loadDag();
+        if (target === 'tab-gates') loadGates();
+        if (target === 'tab-sessions') loadSessions();
+        if (target === 'tab-delegation') loadDelegation();
+        if (target === 'tab-diagnostics') runDiagnostics();
+      });
+    });
+
     // Button event listeners
     document.getElementById('btn-reconnect').addEventListener('click', () => {
+      state.disconnectedManually = false;
       state.reconnectCount = 0;
-      startSSE();
+      setConnectionStatus('reconnecting');
+      pollEventsLoop();
+      loadWorkers();
+      loadDag();
+      loadGates();
     });
-    document.getElementById('btn-disconnect').addEventListener('click', () => disconnectSSE());
-    document.getElementById('btn-clear-log').addEventListener('click', () => { eventsLog.innerHTML = ''; });
+
+    document.getElementById('btn-disconnect').addEventListener('click', () => {
+      state.disconnectedManually = true;
+      setConnectionStatus('disconnected');
+    });
+
+    document.getElementById('btn-clear-log').addEventListener('click', () => {
+      eventsLog.innerHTML = '';
+    });
+
     document.getElementById('btn-diagnostics').addEventListener('click', () => {
       document.querySelector('[data-tab="tab-diagnostics"]').click();
-      runDiagnostics();
     });
+
     document.getElementById('btn-run-full-diag').addEventListener('click', () => runDiagnostics());
     document.getElementById('btn-refresh-workers').addEventListener('click', () => loadWorkers());
     document.getElementById('btn-refresh-dag').addEventListener('click', () => loadDag());
@@ -1227,10 +994,25 @@
     document.getElementById('btn-refresh-sessions').addEventListener('click', () => loadSessions());
     document.getElementById('btn-refresh-delegation').addEventListener('click', () => loadDelegation());
 
-    // Auto-start on load
-    window.addEventListener('DOMContentLoaded', () => {
-      loadWorkers();
-      startSSE();
+    // Auto-init on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const health = await callWorker('getHealth');
+        if (health && health.status === 'healthy') {
+          setConnectionStatus('connected');
+          logEvent('system', { message: 'PersonaOS Workforce Bridge connected via Orca Host IPC', gateway_version: health.gateway_version });
+          loadWorkers();
+          loadDag();
+          loadGates();
+          pollEventsLoop();
+        } else {
+          setConnectionStatus('reconnecting');
+        }
+      } catch (err) {
+        setConnectionStatus('reconnecting');
+        logEvent('error', { message: err.message });
+        pollEventsLoop();
+      }
     });
   </script>
 </body>

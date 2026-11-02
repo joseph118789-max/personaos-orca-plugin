@@ -10,6 +10,8 @@
   },
   "repository": "https://github.com/joseph118789-max/personaos-orca-plugin",
   "pluginApi": 1,
+  "execution": "trusted-worker",
+  "main": "dist/index.js",
   "engines": {
     "orca": ">=1.0.0"
   },
@@ -20,6 +22,12 @@
         "title": "PersonaOS",
         "icon": "bot",
         "entry": "panel/index.html"
+      }
+    ],
+    "commands": [
+      {
+        "id": "personaos.messageWorker",
+        "title": "Message PersonaOS Worker"
       }
     ]
   },
